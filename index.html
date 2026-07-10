@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Neon Games</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        :root {
+            --primary: #bb86fc;
+            --secondary: #03dac6;
+            --bg: #0a0a0c;
+            --surface: #16161a;
+            --error: #cf6679;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: #fff;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .card {
+            background: var(--surface);
+            padding: 30px;
+            border-radius: 24px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            text-align: center;
+            border: 1px solid #23232a;
+            max-width: 420px;
+            width: 100%;
+        }
+
+        h1 { color: var(--primary); margin-bottom: 25px; text-shadow: 0 0 15px rgba(187,134,252,0.5); }
+        
+        .section-title { font-size: 14px; color: #888; text-transform: uppercase; margin: 15px 0 10px; text-align: left; letter-spacing: 1px;}
+        
+        input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            border: 2px solid #2c2c35;
+            background: #1f1f25;
+            color: #fff;
+            font-size: 16px;
+            outline: none;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+            transition: 0.3s;
+        }
+        input:focus { border-color: var(--primary); box-shadow: 0 0 10px rgba(187,134,252,0.2);}
+
+        /* СТИЛЬНЫЕ НЕОНОВЫЕ ПЕРЕКЛЮЧАТЕЛИ СЛОЖНОСТИ */
+        .difficulty-selector {
+            display: flex;
+            position: relative;
+            background: #1f1f25;
+            border-radius: 10px;
+            border: 2px solid #2c2c35;
+            margin-bottom: 15px;
+            overflow: hidden;
+            height: 44px;
+        }
+        .difficulty-selector input[type="radio"] {
+            display: none; /* Прячем стандартные кружочки */
+        }
+        .difficulty-selector label {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            color: #666;
+            cursor: pointer;
+            z-index: 1;
+            transition: color 0.3s;
+        }
+        /* Ползунок, который ездит под текстом */
+        .slider {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 33.333%;
+            background: rgba(3, 218, 198, 0.2);
+            border-bottom: 3px solid var(--secondary);
+            z-index: 0;
+            transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        
+        /* Логика перемещения ползунка */
+        #diff-easy:checked ~ .slider { transform: translateX(0%); }
+        #diff-medium:checked ~ .slider { transform: translateX(100%); }
+        #diff-hardcore:checked ~ .slider { transform: translateX(200%); }
+
+        /* Подсветка активного текста */
+        #diff-easy:checked ~ label[for="diff-easy"],
+        #diff-medium:checked ~ label[for="diff-medium"],
+        #diff-hardcore:checked ~ label[for="diff-hardcore"] {
+            color: var(--secondary);
+            text-shadow: 0 0 8px rgba(3, 218, 198, 0.5);
+        }
+
+        .flex-row { display: flex; gap: 10px; margin-bottom: 15px; }
+        
+        button {
+            padding: 12px 15px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 10px;
+            transition: 0.2s;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .btn-bot { background: var(--secondary); color: #000; }
+        .btn-create { background: var(--primary); color: #000; }
+        .btn-join { background: #3700b3; color: #fff; }
+        
+        button:hover { filter: brightness(1.2); transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.3);}
+
+        #leaveBtn { background: transparent; color: var(--error); border: 1px solid var(--error); margin-top: 15px; display: none; }
+        #leaveBtn:hover { background: rgba(207, 102, 121, 0.1); }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin: 25px auto;
+            max-width: 320px;
+            display: none;
+        }
+        .board.active { display: grid; }
+
+        .cell {
+            aspect-ratio: 1;
+            background: #1f1f25;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 54px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: inset 0 0 0 transparent;
+        }
+        .cell:hover { background: #2a2a32; box-shadow: inset 0 0 15px rgba(255,255,255,0.05); }
+        
+        .cell span {
+            display: inline-block;
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            text-shadow: 0 0 15px currentColor;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.2) rotate(-20deg); opacity: 0; filter: blur(4px); }
+            50% { transform: scale(1.2) rotate(10deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; filter: blur(0); }
+        }
+
+        .cell.win-pulse { 
+            background: #271d3a; 
+            color: #ff007f !important; 
+            animation: winGlow 1s infinite alternate, shake 0.5s cubic-bezier(.36,.07,.19,.97) both; 
+        }
+        
+        @keyframes winGlow {
+            0% { box-shadow: 0 0 10px rgba(255,0,127,0.4); transform: scale(1); }
+            100% { box-shadow: 0 0 25px rgba(255,0,127,0.9); transform: scale(1.05); }
+        }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        #status { font-size: 18px; margin-top: 15px; font-weight: 600; min-height: 50px; color: #b3b3b3; }
+        #vs-text { font-size: 14px; color: var(--error); margin-bottom: 10px; letter-spacing: 1px;}
+        .countdown { color: var(--secondary); font-size: 14px; display: block; margin-top: 5px;}
+        .code-display { font-size: 32px; color: var(--primary); letter-spacing: 5px; font-weight: bold; margin: 15px 0; text-shadow: 0 0 10px var(--primary);}
+        
+        hr { border: 0; height: 1px; background: #2c2c35; margin: 20px 0; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>🎮 NEON HUB</h1>
+        <div id="vs-text"></div>
+        
+        <div id="menu">
+            <div class="section-title">Одиночная катка</div>
+            <input type="text" id="botNickname" placeholder="Твой ник..." maxlength="12">
+            
+            <!-- Новый крутой переключатель сложности -->
+            <div class="difficulty-selector">
+                <input type="radio" id="diff-easy" name="difficulty" value="easy">
+                <input type="radio" id="diff-medium" name="difficulty" value="medium">
+                <input type="radio" id="diff-hardcore" name="difficulty" value="hardcore" checked>
+                
+                <label for="diff-easy">Изи</label>
+                <label for="diff-medium">Средняк</label>
+                <label for="diff-hardcore">Хардкор</label>
+                <div class="slider"></div>
+            </div>
+
+            <button class="btn-bot" onclick="startBotMode()">Играть с ботом</button>
+
+            <hr>
+
+            <div class="section-title">Онлайн (Ник выдастся рандомно)</div>
+            <button class="btn-create" onclick="startOnlineMode('create')">Создать комнату</button>
+            
+            <div class="flex-row" style="margin-top: 10px;">
+                <input type="text" id="roomCodeInput" placeholder="ВВЕДИ КОД..." maxlength="4" style="margin-bottom: 0; text-transform: uppercase; text-align: center;">
+                <button class="btn-join" onclick="startOnlineMode('join')" style="margin-bottom: 0;">Войти</button>
+            </div>
+        </div>
+
+        <div id="roomWait" style="display: none;">
+            <div id="waitMsg">Твой рандомный ник:<br><strong id="waitNick" style="color: var(--secondary)"></strong></div>
+            <div class="code-display" id="displayCode"></div>
+            <div style="font-size: 12px; color: #888;">Скинь этот код сопернику</div>
+        </div>
+
+        <div class="board" id="board"></div>
+        <div id="status">Залетай в игру!</div>
+        
+        <button id="leaveBtn" onclick="location.reload()">Сдаться и ливнуть</button>
+    </div>
+
+    <script>
+        let boardState = ["", "", "", "", "", "", "", "", ""];
+        let gameActive = false;
+        let gameMode = ""; 
+        let mySymbol = "X"; 
+        let currentTurn = "X";
+        let roomID = null;
+        let restartTimer = null;
+        let currentDifficulty = "hardcore";
+        
+        let myFullNick = "";
+        let opponentFullNick = "";
+
+        const adjs = ["Неоновый", "Кибер", "Турбо", "Токсичный", "Квантовый", "Дикий", "Скрытный", "Пиксельный"];
+        const nouns = ["Волк", "Хакер", "Ниндзя", "Самурай", "Босс", "Кот", "Призрак", "Фантом"];
+
+        function generateRandomNick() {
+            let a = adjs[Math.floor(Math.random() * adjs.length)];
+            let n = nouns[Math.floor(Math.random() * nouns.length)];
+            return `${a} ${n}`;
+        }
+
+        const socket = io();
+        
+        const winConditions = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],
+            [0, 4, 8], [2, 4, 6]
+        ];
+
+        function startBotMode() {
+            const nickInput = document.getElementById('botNickname').value.trim();
+            myFullNick = nickInput ? nickInput : "Игрок";
+            
+            // Читаем значение из нового радио-переключателя
+            currentDifficulty = document.querySelector('input[name="difficulty"]:checked').value;
+            gameMode = 'bot';
+
+            document.getElementById('menu').style.display = 'none';
+            document.getElementById('leaveBtn').style.display = 'block';
+
+            let diffText = currentDifficulty === 'easy' ? '(Изи)' : currentDifficulty === 'medium' ? '(Средняк)' : '(Хардкор)';
+            opponentFullNick = `Бот ${diffText}`;
+            
+            document.getElementById('vs-text').innerText = `${myFullNick} (X) VS ${opponentFullNick} (O)`;
+            initGameBoard();
+            gameActive = true;
+            document.getElementById('status').innerText = "Твой ход, рубись!";
+        }
+
+        function startOnlineMode(action) {
+            gameMode = 'online';
+            myFullNick = generateRandomNick(); 
+
+            document.getElementById('menu').style.display = 'none';
+            document.getElementById('leaveBtn').style.display = 'block';
+
+            if (action === 'create') {
+                document.getElementById('status').innerText = "Коннект к серверу...";
+                document.getElementById('roomWait').style.display = 'block';
+                document.getElementById('waitNick').innerText = myFullNick;
+                socket.emit('create_room', { nickname: myFullNick });
+            } else if (action === 'join') {
+                const code = document.getElementById('roomCodeInput').value;
+                if(code.length !== 4) return alert("Код должен состоять из 4 символов!");
+                document.getElementById('status').innerText = "Врываемся в комнату...";
+                socket.emit('join_room', { code: code, nickname: myFullNick });
+            }
+        }
+
+        // Замени свой текущий socket.on('room_created', ...) на этот:
+
+        socket.on('room_created', (data) => {
+    // 1. Прячем главное меню
+    document.getElementById('menu').style.display = 'none';
+
+    // 2. ПОКАЗЫВАЕМ блок с ожиданием (вот эта строка критична)
+    const waitBlock = document.getElementById('roomWait');
+    waitBlock.style.display = 'block'; 
+
+    // 3. Записываем код в нужный элемент
+    document.getElementById('displayCode').innerText = data.code;
+    
+    // 4. Пишем статус
+    document.getElementById('status').innerText = "Ожидание соперника...";
+    
+    console.log("Код комнаты получен:", data.code); // Проверь F12 -> Console
+});
+        socket.on('error', (data) => {
+            alert(data.msg);
+            location.reload();
+        });
+
+        socket.on('game_start', (data) => {
+            roomID = data.room;
+            mySymbol = data.symbol;
+            currentTurn = "X"; 
+            
+            myFullNick = data.my_nick; 
+            opponentFullNick = data.opponent;
+            
+            document.getElementById('roomWait').style.display = 'none';
+            document.getElementById('vs-text').innerText = `${myFullNick} (${mySymbol}) VS ${opponentFullNick} (${mySymbol === 'X' ? 'O' : 'X'})`;
+            
+            initGameBoard();
+            gameActive = true;
+            updateStatusText();
+        });
+
+        socket.on('opponent_moved', (data) => {
+            boardState[data.index] = data.symbol;
+            renderBoard();
+            if (checkWin(data.symbol)) return;
+            currentTurn = mySymbol;
+            updateStatusText();
+        });
+
+        socket.on('opponent_left', () => {
+            clearInterval(restartTimer);
+            document.getElementById('status').innerHTML = "Соперник трусливо ливнул! Победа за тобой 😎";
+            gameActive = false;
+        });
+
+        function initGameBoard() {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            boardState = ["", "", "", "", "", "", "", "", ""];
+            board.classList.add('active');
+            
+            for(let i=0; i<9; i++) {
+                let cell = document.createElement('div');
+                cell.classList.add('cell');
+                cell.addEventListener('click', () => makeMove(i));
+                board.appendChild(cell);
+            }
+        }
+
+        function renderBoard() {
+            const cells = document.getElementsByClassName('cell');
+            for(let i=0; i<9; i++) {
+                if (boardState[i] !== "" && cells[i].innerHTML === "") {
+                    let color = boardState[i] === 'X' ? 'var(--primary)' : 'var(--secondary)';
+                    cells[i].innerHTML = `<span style="color: ${color}">${boardState[i]}</span>`;
+                }
+            }
+        }
+
+        function makeMove(index) {
+            if (!gameActive || boardState[index] !== "") return;
+
+            if (gameMode !== 'bot' && currentTurn !== mySymbol) {
+                document.getElementById('status').innerText = "Э, не твой ход! Не спамь!";
+                setTimeout(updateStatusText, 1500);
+                return;
+            }
+
+            boardState[index] = gameMode !== 'bot' ? mySymbol : "X";
+            
+            if (gameMode !== 'bot') {
+                socket.emit('player_move', { room: roomID, index: index, symbol: mySymbol });
+                currentTurn = mySymbol === 'X' ? 'O' : 'X';
+            }
+
+            renderBoard();
+
+            if (checkWin(boardState[index])) return;
+
+            if (gameMode === 'bot') {
+                gameActive = false;
+                document.getElementById('status').innerText = "Бот вычисляет...";
+                setTimeout(botBrain, 600);
+            } else {
+                updateStatusText();
+            }
+        }
+
+        function botBrain() {
+            let move = null;
+
+            if (currentDifficulty === 'hardcore') {
+                move = findWinningMove("O");
+                if (move === null) move = findWinningMove("X");
+                if (move === null && boardState[4] === "") move = 4;
+            } 
+            else if (currentDifficulty === 'medium') {
+                move = findWinningMove("O");
+            }
+
+            if (move === null) {
+                let empties = boardState.map((v, i) => v === "" ? i : null).filter(v => v !== null);
+                move = empties[Math.floor(Math.random() * empties.length)];
+            }
+
+            if (move !== undefined && move !== null) {
+                boardState[move] = "O";
+                renderBoard();
+                if (checkWin("O")) return;
+            }
+
+            gameActive = true;
+            document.getElementById('status').innerText = "Твой ход!";
+        }
+
+        function findWinningMove(sym) {
+            for (let combo of winConditions) {
+                let countSym = combo.filter(i => boardState[i] === sym).length;
+                let countEmpty = combo.filter(i => boardState[i] === "").length;
+                if (countSym === 2 && countEmpty === 1) return combo.find(i => boardState[i] === "");
+            }
+            return null;
+        }
+
+        function checkWin(sym) {
+            let winCombo = null;
+            for (let combo of winConditions) {
+                if (boardState[combo[0]] === sym && boardState[combo[1]] === sym && boardState[combo[2]] === sym) {
+                    winCombo = combo;
+                    break;
+                }
+            }
+
+            if (winCombo) {
+                announceWinner(sym, winCombo);
+                return true;
+            }
+
+            if (!boardState.includes("")) {
+                announceWinner("Ничья", null);
+                return true;
+            }
+            return false;
+        }
+
+        function announceWinner(winnerSymbol, winningCombo) {
+            gameActive = false;
+            const cells = document.getElementsByClassName('cell');
+            let resultText = "";
+            
+            if (winnerSymbol === "Ничья") {
+                resultText = "Ничья. Вязкая игра.";
+            } else {
+                let winnerName = (winnerSymbol === mySymbol || (gameMode === 'bot' && winnerSymbol === 'X')) 
+                                 ? myFullNick : opponentFullNick;
+                
+                resultText = `🎉 ${winnerName} стер противника в пыль!`;
+                winningCombo.forEach(idx => cells[idx].classList.add('win-pulse'));
+            }
+
+            let timeLeft = 3;
+            document.getElementById('status').innerHTML = `${resultText} <br><span class="countdown">Рестарт через ${timeLeft}...</span>`;
+            
+            restartTimer = setInterval(() => {
+                timeLeft--;
+                if (timeLeft > 0) {
+                    document.getElementById('status').innerHTML = `${resultText} <br><span class="countdown">Рестарт через ${timeLeft}...</span>`;
+                } else {
+                    clearInterval(restartTimer);
+                    silentReset();
+                }
+            }, 1000);
+        }
+
+        function updateStatusText() {
+            document.getElementById('status').innerText = currentTurn === mySymbol ? "Твоя очередь, делай грязь!" : "Соперник думает...";
+        }
+
+        function silentReset() {
+            boardState = ["", "", "", "", "", "", "", "", ""];
+            gameActive = true;
+            
+            const cells = document.getElementsByClassName('cell');
+            for(let i=0; i<9; i++) {
+                cells[i].innerHTML = "";    
+                cells[i].classList.remove('win-pulse');
+            }
+            
+            if (gameMode !== 'bot') {
+                currentTurn = "X"; 
+                updateStatusText();
+            } else {
+                document.getElementById('status').innerText = "Новый раунд погнал! Твой ход.";
+            }
+        }
+    </script>
+</body>
+</html>
