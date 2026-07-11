@@ -75,7 +75,12 @@
     </div>
 
     <script>
-        const socket = io(); // Connects to the same host
+        // =========================================================
+        // Укажите здесь ссылку на свой сервер.
+        // Для локального теста используйте http://localhost:5000
+        // Для продакшена: https://ung-6k09.onrender.com
+        const socket = io("http://localhost:5000"); 
+        // =========================================================
 
         // Element refs
         const menu = document.getElementById('menu');
