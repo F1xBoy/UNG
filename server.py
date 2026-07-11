@@ -1,3 +1,4 @@
+import os
 from flask import Flask, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import random
@@ -72,5 +73,6 @@ def on_disconnect():
             del active_rooms[code]
 
 if __name__ == '__main__':
-    print("Сервер готов к замесам! Запуск на http://127.0.0.1:5000")
-    socketio.run(app, port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    print(f"Сервер готов к замесам! Запуск на порту {port}")
+    socketio.run(app, host='0.0.0.0', port=port)
