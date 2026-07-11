@@ -1,12 +1,12 @@
+import eventlet
+eventlet.monkey_patch()
+
 import os
 import random
 import string
-import eventlet
 from flask import Flask, request
 from flask_socketio import SocketIO, emit, join_room
 
-# Set up Eventlet for SocketIO background tasks
-eventlet.monkey_patch()
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
