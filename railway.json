@@ -3,7 +3,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 1 --timeout 120 --bind [::]:$PORT server:app",
+    "startCommand": "gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 1 --timeout 180 --bind [::]:$PORT server:app",
     "healthcheckPath": "/",
     "restartPolicyType": "ON_FAILURE"
   }
