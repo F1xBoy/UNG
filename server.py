@@ -257,9 +257,7 @@ def on_create(data):
     emit('room_created', {'code': code})
     if mode == "PvE":
         room.game_active = True
-        # Небольшая задержка чтобы клиент успел обработать room_created
-        import time; time.sleep(0.3)
-        socketio.emit('game_start', {'room': code, 'mode': mode, 'my_id': sid}, room=code)
+        emit('game_start', {'room': code, 'mode': mode, 'my_id': sid})
 
 @socketio.on('join_room')
 def on_join(data):
