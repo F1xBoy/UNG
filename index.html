@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Neon Arena</title>
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <title>Neon Arena — Автономный режим</title>
   <style>
     :root { --bg: #0b0b10; --primary: #bb86fc; --danger: #ff0266; --surface: #1a1a2e; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -12,221 +11,312 @@
       font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #fff;
       display: flex; justify-content: center; align-items: center; min-height: 100vh; text-align: center;
     }
-    .container { background: var(--surface); padding: 30px; border-radius: 20px; width: 340px; box-shadow: 0 0 30px rgba(187,134,252,0.3); border: 1px solid #333; }
+    .container { background: var(--surface); padding: 30px; border-radius: 20px; width: 360px; box-shadow: 0 0 30px rgba(187,134,252,0.3); border: 1px solid #333; }
+    h1 { color: var(--primary); margin-bottom: 20px; }
     input, button { width: 100%; padding: 14px; margin: 10px 0; border-radius: 8px; border: none; font-size: 16px; font-weight: bold; outline: none; }
     input { background: #222; color: #fff; text-align: center; text-transform: uppercase; border: 2px solid #444; }
     input:focus { border-color: var(--primary); }
     button { cursor: pointer; text-transform: uppercase; font-weight: 900; transition: opacity 0.2s; }
-    button:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-pve { background: var(--danger); color: #000; }
-    .btn-pvp { background: var(--primary); color: #000; }
-    .btn-join { background: #03dac6; color: #000; }
-    .status { font-size: 14px; margin: 10px 0; padding: 8px; border-radius: 5px; background: #111; color: #ccc; }
-    .status.connected { color: #0f0; }
-    .status.disconnected { color: #f00; }
+    button:hover { opacity: 0.8; }
     .hidden { display: none !important; }
-    #waiting-screen h2 { margin-bottom: 15px; }
-    .code { font-size: 50px; font-weight: 900; color: #fff; text-shadow: 0 0 20px var(--primary); }
-    canvas { background: #111; border: 2px solid #333; border-radius: 10px; display: block; margin: 20px auto; width: 100%; max-width: 500px; height: auto; }
+    #game-screen { position: relative; }
+    canvas { background: linear-gradient(180deg, #0a0a0c 0%, #1a1a24 100%); border: 2px solid #333; border-radius: 10px; display: block; margin: 0 auto; }
+    .ui-panel {
+      position: absolute; top: 10px; left: 10px; right: 10px;
+      display: flex; justify-content: space-between; color: #fff; font-size: 14px;
+      pointer-events: none;
+    }
+    .wave-display { color: var(--danger); font-weight: bold; font-size: 20px; }
+    .coins-display { color: gold; font-weight: bold; }
+    .game-over {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8); display: flex; flex-direction: column;
+      justify-content: center; align-items: center; font-size: 40px; font-weight: 900;
+      color: var(--danger); text-shadow: 0 0 20px var(--danger);
+    }
   </style>
 </head>
 <body>
 
 <div id="menu" class="container">
-  <h1 style="color:var(--primary); margin-bottom:20px;">NEON ARENA</h1>
+  <h1>NEON ARENA</h1>
   <p style="font-size:14px; color:#888; margin-bottom:10px;">A/D — движение | W — прыжок | ПРОБЕЛ — удар</p>
   <input id="nickname" placeholder="ТВОЙ НИКНЕЙМ" maxlength="15" />
-  <button id="btnPvE" class="btn-pve" disabled>Создать PvE (Зомби)</button>
-  <button id="btnPvP" class="btn-pvp" disabled>Создать PvP (Дуэль)</button>
-  <hr style="border-color:#333; margin:15px 0;">
-  <input id="roomCode" placeholder="КОД КОМНАТЫ" maxlength="4" />
-  <button id="btnJoin" class="btn-join" disabled>Присоединиться</button>
-  <div id="connectionStatus" class="status disconnected">● Отключено</div>
-</div>
-
-<div id="waiting-screen" class="container hidden">
-  <h2>Код арены</h2>
-  <div class="code" id="displayCode">----</div>
-  <p>Ожидание игроков...</p>
+  <button class="btn-pve" onclick="startGame()">Создать PvE (Зомби)</button>
+  <p style="margin-top:15px; color:#666; font-size:12px;">Локальная версия — без сервера</p>
 </div>
 
 <div id="game-screen" class="hidden">
-  <canvas id="canvas" width="500" height="300"></canvas>
-  <button onclick="location.reload()" style="width:auto; margin-top:10px;">В МЕНЮ</button>
+  <canvas id="canvas" width="800" height="500"></canvas>
+  <div class="ui-panel" id="ui-panel"></div>
+  <div id="game-over" class="game-over hidden">
+    <span>ВЫ ПОГИБЛИ</span>
+    <button onclick="location.reload()" style="width:200px; margin-top:20px; background:#fff; color:#000;">В МЕНЮ</button>
+  </div>
 </div>
 
 <script>
-  const SERVER_URL = "https://web-production-91b86.up.railway.app";
-  let socket = null;
-  let myId = null;
-  let gameState = { players: {}, zombies: {}, wave: 0 };
+  // ---------- КОНСТАНТЫ И СОСТОЯНИЕ ----------
+  const FLOOR = 420;
+  const GRAVITY = 0.6;
+  const JUMP_FORCE = -12;
+  const SPEED = 5;
+  const ZOMBIE_SPEED = 1.5;
+  const TICK_RATE = 1000 / 30; // 30 FPS
 
-  // Отключаем кнопки до подключения
-  const btnPvE = document.getElementById('btnPvE');
-  const btnPvP = document.getElementById('btnPvP');
-  const btnJoin = document.getElementById('btnJoin');
-  const statusDiv = document.getElementById('connectionStatus');
+  const platforms = [
+    { x: 100, y: 300, w: 180, h: 15 },
+    { x: 520, y: 300, w: 180, h: 15 },
+    { x: 310, y: 180, w: 180, h: 15 }
+  ];
 
-  function connect() {
-    if (socket && socket.connected) return; // уже подключены
-    if (socket) socket.disconnect(); // разрываем старые попытки
-    socket = io(SERVER_URL, {
-      transports: ['polling'],
-      forceNew: true,
-      reconnection: false
-    });
-
-    socket.on('connect', () => {
-      statusDiv.textContent = '● Подключено';
-      statusDiv.className = 'status connected';
-      btnPvE.disabled = false;
-      btnPvP.disabled = false;
-      btnJoin.disabled = false;
-      console.log('✅ Connected:', socket.id);
-    });
-
-    socket.on('disconnect', () => {
-      statusDiv.textContent = '● Отключено';
-      statusDiv.className = 'status disconnected';
-      btnPvE.disabled = true;
-      btnPvP.disabled = true;
-      btnJoin.disabled = true;
-    });
-
-    socket.on('connect_error', (err) => {
-      statusDiv.textContent = '● Ошибка: ' + err.message;
-      statusDiv.className = 'status disconnected';
-    });
-
-    socket.on('room_created', (data) => {
-      document.getElementById('menu').classList.add('hidden');
-      document.getElementById('waiting-screen').classList.remove('hidden');
-      document.getElementById('displayCode').textContent = data.code;
-    });
-
-    socket.on('game_start', (data) => {
-      myId = data.my_id;
-      document.getElementById('waiting-screen').classList.add('hidden');
-      document.getElementById('game-screen').classList.remove('hidden');
-      requestAnimationFrame(gameLoop);
-    });
-
-    socket.on('game_state', (state) => {
-      gameState = state;
-    });
-
-    socket.on('error', (data) => alert(data.msg));
-  }
-
-  // Функции кнопок
-  function getNickname() {
-    let n = document.getElementById('nickname').value.trim();
-    if (!n) n = 'Player_' + Math.floor(Math.random()*1000);
-    localStorage.setItem('nickname', n);
-    return n;
-  }
-
-  window.createRoom = function(mode) {
-    if (!socket || !socket.connected) return alert('Нет соединения с сервером');
-    const nick = getNickname();
-    socket.emit('create_room', { username: nick, mode: mode });
+  // Игрок
+  let player = {
+    x: 200, y: 100, vx: 0, vy: 0,
+    hp: 100, coins: 0,
+    facingRight: true, attacking: false, attackTimer: 0,
+    keys: { left: false, right: false, up: false }
   };
 
-  window.joinRoom = function() {
-    if (!socket || !socket.connected) return alert('Нет соединения с сервером');
-    const code = document.getElementById('roomCode').value.trim().toUpperCase();
-    if (code.length !== 4) return alert('Введите 4 символа');
-    const nick = getNickname();
-    socket.emit('join_room', { code: code, username: nick });
-  };
+  // Зомби и волны
+  let zombies = [];
+  let wave = 0;
+  let zombiesToSpawn = 0;
+  let zombieIdCounter = 0;
 
-  // Привязка к кнопкам
-  btnPvE.addEventListener('click', () => createRoom('PvE'));
-  btnPvP.addEventListener('click', () => createRoom('PvP'));
-  btnJoin.addEventListener('click', joinRoom);
+  // Canvas
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
 
-  // Управление
+  // ---------- УПРАВЛЕНИЕ ----------
   const keys = {};
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Space') {
       e.preventDefault();
-      if (socket && socket.connected) socket.emit('attack');
+      playerAttack();
     } else if (['KeyA','KeyD','KeyW','ArrowLeft','ArrowRight','ArrowUp'].includes(e.code)) {
       e.preventDefault();
-      if (!keys[e.code]) {
-        keys[e.code] = true;
-        sendInput(e.code, true);
-      }
+      keys[e.code] = true;
+      updatePlayerKeys();
     }
   });
   window.addEventListener('keyup', (e) => {
     if (['KeyA','KeyD','KeyW','ArrowLeft','ArrowRight','ArrowUp'].includes(e.code)) {
       e.preventDefault();
       keys[e.code] = false;
-      sendInput(e.code, false);
+      updatePlayerKeys();
     }
   });
 
-  function sendInput(code, pressed) {
-    if (!socket || !socket.connected) return;
-    let action = null;
-    if (code === 'KeyA' || code === 'ArrowLeft') action = 'left';
-    else if (code === 'KeyD' || code === 'ArrowRight') action = 'right';
-    else if (code === 'KeyW' || code === 'ArrowUp') action = 'up';
-    if (action) socket.emit('player_input', { action, state: pressed });
+  function updatePlayerKeys() {
+    player.keys.left = keys['KeyA'] || keys['ArrowLeft'];
+    player.keys.right = keys['KeyD'] || keys['ArrowRight'];
+    player.keys.up = keys['KeyW'] || keys['ArrowUp'];
   }
 
-  // Отрисовка (без изменений)
+  // ---------- ЛОГИКА ----------
+  function startGame() {
+    const nick = document.getElementById('nickname').value.trim() || 'Player';
+    localStorage.setItem('nickname', nick);
+    document.getElementById('menu').classList.add('hidden');
+    document.getElementById('game-screen').classList.remove('hidden');
+    resetGame();
+    setInterval(gameLoop, TICK_RATE);
+  }
+
+  function resetGame() {
+    player.hp = 100; player.coins = 0;
+    player.x = 200; player.y = 100; player.vx = 0; player.vy = 0;
+    player.attackTimer = 0; player.attacking = false;
+    zombies = [];
+    wave = 0;
+    zombiesToSpawn = 0;
+    zombieIdCounter = 0;
+    document.getElementById('game-over').classList.add('hidden');
+  }
+
+  function spawnZombie() {
+    const side = Math.random() < 0.5 ? 50 : 750;
+    zombies.push({
+      id: zombieIdCounter++,
+      x: side, y: 100,
+      vx: 0, vy: 0,
+      hp: 40 + wave * 5,
+      facingRight: side < 400,
+      attackTimer: 0
+    });
+    zombiesToSpawn--;
+  }
+
+  function playerAttack() {
+    if (player.hp <= 0 || player.attackTimer > 0) return;
+    player.attacking = true;
+    player.attackTimer = 12;
+
+    const reach = player.facingRight ? player.x + 90 : player.x - 90;
+    for (let i = zombies.length - 1; i >= 0; i--) {
+      const z = zombies[i];
+      const hit = (player.facingRight && z.x > player.x && z.x - 20 < reach && Math.abs(player.y - z.y) < 80) ||
+                  (!player.facingRight && z.x < player.x && z.x + 20 > reach && Math.abs(player.y - z.y) < 80);
+      if (hit) {
+        z.hp -= 25;
+        if (z.hp <= 0) {
+          zombies.splice(i, 1);
+          player.coins += 10;
+        }
+        break; // один удар за атаку
+      }
+    }
+  }
+
+  function gameLoop() {
+    if (player.hp <= 0) {
+      document.getElementById('game-over').classList.remove('hidden');
+      return;
+    }
+
+    // Управление игроком
+    if (player.keys.left) { player.vx = -SPEED; player.facingRight = false; }
+    else if (player.keys.right) { player.vx = SPEED; player.facingRight = true; }
+    else player.vx = 0;
+
+    let onGround = false;
+    if (player.y >= FLOOR) onGround = true;
+    for (const plat of platforms) {
+      if (plat.x - 20 < player.x && player.x < plat.x + plat.w + 20 && player.y <= plat.y && player.y + player.vy >= plat.y) {
+        onGround = true; player.y = plat.y; player.vy = 0;
+      }
+    }
+    if (player.keys.up && onGround) player.vy = JUMP_FORCE;
+
+    player.vy += GRAVITY;
+    player.x += player.vx;
+    player.y += player.vy;
+    if (player.y > FLOOR) { player.y = FLOOR; player.vy = 0; }
+    player.x = Math.max(30, Math.min(770, player.x));
+
+    // Таймер атаки
+    if (player.attackTimer > 0) {
+      player.attackTimer--;
+      if (player.attackTimer === 0) player.attacking = false;
+    }
+
+    // Зомби-логика
+    if (zombies.length === 0 && zombiesToSpawn === 0) {
+      wave++;
+      zombiesToSpawn = 3 + wave * 2;
+    }
+    if (zombiesToSpawn > 0 && Math.random() < 0.03) spawnZombie();
+
+    for (let i = zombies.length - 1; i >= 0; i--) {
+      const z = zombies[i];
+      if (z.attackTimer > 0) z.attackTimer--;
+
+      const dist = Math.abs(player.x - z.x) + Math.abs(player.y - z.y);
+      const nearX = Math.abs(player.x - z.x) < 40;
+
+      if (!nearX) {
+        if (z.x < player.x) { z.vx = ZOMBIE_SPEED; z.facingRight = true; }
+        else if (z.x > player.x) { z.vx = -ZOMBIE_SPEED; z.facingRight = false; }
+      } else {
+        z.vx = 0;
+        if (z.attackTimer === 0 && Math.abs(player.y - z.y) < 80) {
+          player.hp -= 10;
+          z.attackTimer = 40;
+          if (player.hp < 0) player.hp = 0;
+        }
+      }
+
+      z.vy += GRAVITY;
+      z.x += z.vx;
+      z.y += z.vy;
+      // платформы
+      for (const plat of platforms) {
+        if (plat.x - 15 < z.x && z.x < plat.x + plat.w + 15 && z.y <= plat.y && z.y + z.vy >= plat.y) {
+          z.y = plat.y; z.vy = 0;
+        }
+      }
+      if (z.y > FLOOR) { z.y = FLOOR; z.vy = 0; }
+      z.x = Math.max(30, Math.min(770, z.x));
+    }
+
+    // Обновление UI
+    document.getElementById('ui-panel').innerHTML = `
+      <div>
+        <div style="color:${player.hp > 30 ? 'var(--primary)' : 'red'}">❤️ ${player.hp}</div>
+        <div style="color:gold">💰 ${player.coins}</div>
+      </div>
+      <div class="wave-display">WAVE ${wave}</div>
+      <div></div>
+    `;
+
+    draw();
+  }
+
+  // ---------- ОТРИСОВКА ----------
   function draw() {
-    const canvas = document.getElementById('canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#222';
-    ctx.fillRect(0, 250, canvas.width, 50);
-    ctx.strokeStyle = '#555'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(0, 250); ctx.lineTo(canvas.width, 250); ctx.stroke();
 
-    for (const z of Object.values(gameState.zombies)) {
-      drawCharacter(ctx, z.x, z.y, '#ff0266', z.isFacingRight, z.isAttacking, z.hp);
+    // Пол
+    ctx.fillStyle = '#1a1a24';
+    ctx.fillRect(0, FLOOR, canvas.width, canvas.height - FLOOR);
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, FLOOR); ctx.lineTo(canvas.width, FLOOR); ctx.stroke();
+
+    // Платформы
+    for (const plat of platforms) {
+      ctx.fillStyle = '#181820';
+      ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
+      ctx.strokeStyle = '#444';
+      ctx.strokeRect(plat.x, plat.y, plat.w, plat.h);
     }
-    for (const p of Object.values(gameState.players)) {
-      drawCharacter(ctx, p.x, p.y, p.color, p.isFacingRight, p.isAttacking, p.hp);
+
+    // Зомби
+    for (const z of zombies) {
+      drawCharacter(z.x, z.y, '#ff0266', z.facingRight, z.attackTimer > 0, z.hp);
     }
+    // Игрок
+    drawCharacter(player.x, player.y, 'var(--primary)', player.facingRight, player.attacking, player.hp);
   }
 
-  function drawCharacter(ctx, x, y, color, facingRight, attacking, hp) {
+  function drawCharacter(x, y, color, facingRight, attacking, hp) {
     if (hp <= 0) return;
     ctx.save();
     ctx.translate(x, y);
     if (!facingRight) ctx.scale(-1, 1);
     ctx.shadowBlur = 10; ctx.shadowColor = color;
+
+    // Тело
     ctx.fillStyle = '#181820'; ctx.strokeStyle = color; ctx.lineWidth = 2;
-    ctx.fillRect(-10, -35, 20, 25);
-    ctx.strokeRect(-10, -35, 20, 25);
-    ctx.beginPath(); ctx.arc(0, -45, 10, 0, Math.PI*2);
+    ctx.fillRect(-12, -40, 24, 30);
+    ctx.strokeRect(-12, -40, 24, 30);
+
+    // Голова
+    ctx.beginPath(); ctx.arc(0, -50, 10, 0, Math.PI * 2);
     ctx.fillStyle = '#000'; ctx.fill(); ctx.stroke();
-    ctx.fillStyle = color; ctx.fillRect(3, -48, 7, 4);
+    ctx.fillStyle = color; ctx.fillRect(2, -54, 8, 4);
+
+    // Ноги
     ctx.beginPath();
-    ctx.moveTo(-5, -10); ctx.lineTo(-8, 0);
-    ctx.moveTo(5, -10); ctx.lineTo(8, 0);
+    ctx.moveTo(-6, -10); ctx.lineTo(-10, 0);
+    ctx.moveTo(6, -10); ctx.lineTo(10, 0);
     ctx.stroke();
+
+    // Оружие / атака
     if (attacking) {
-      ctx.beginPath(); ctx.moveTo(15, -25); ctx.lineTo(55, -25);
+      ctx.beginPath(); ctx.moveTo(15, -25); ctx.lineTo(65, -25);
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.moveTo(10, -30); ctx.lineTo(25, -25);
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
     }
     ctx.restore();
   }
 
-  function gameLoop() {
-    draw();
-    requestAnimationFrame(gameLoop);
-  }
-
-  // Инициализация
-  const saved = localStorage.getItem('nickname');
-  if (saved) document.getElementById('nickname').value = saved;
-  connect();
+  // Автозаполнение ника
+  const savedNick = localStorage.getItem('nickname');
+  if (savedNick) document.getElementById('nickname').value = savedNick;
 </script>
 </body>
 </html>
