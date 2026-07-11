@@ -1,21 +1,19 @@
+from gevent import monkey
+monkey.patch_all()
+
 import os
 import random
 import string
 import logging
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 from flask import Flask, request
 from flask_socketio import SocketIO, emit, join_room
 import gevent
-from gevent import monkey
-monkey.patch_all()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Health check endpoint
 @app.route('/')
 def health():
     return 'OK'
@@ -34,14 +32,23 @@ db_client = None
 try:
     import firebase_admin
     from firebase_admin import credentials, firestore
-    if os.path.exists("firebase-key.json"):
+    import json
+    firebase_json = os.environ.get("FIREBASE_JSON")
+    if firebase_json:
+        cred_dict = json.loads(firebase_json)
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+        db_client = firestore.client()
+        USE_FIREBASE = True
+        logger.info("Firebase initialized successfully via env var!")
+    elif os.path.exists("firebase-key.json"):
         cred = credentials.Certificate("firebase-key.json")
         firebase_admin.initialize_app(cred)
         db_client = firestore.client()
         USE_FIREBASE = True
-        logger.info("Firebase initialized successfully!")
+        logger.info("Firebase initialized from file.")
     else:
-        logger.warning("firebase-key.json not found. Running without Firebase.")
+        logger.warning("Firebase credentials not found. Running without DB.")
 except Exception as e:
     logger.error(f"Firebase Init Error: {e}")
 
@@ -62,14 +69,13 @@ def update_player_coins(username, coins):
     except Exception as e:
         logger.error(f"Firebase write error: {e}")
 
-# --- Physics & Game Constants ---
+# --- Constants ---
 GRAVITY = 0.7
 FLOOR = 550
 JUMP_FORCE = -15
 SPEED = 7.5
 ZOMBIE_SPEED = 2.0
-FPS = 30
-TICK_RATE = 1.0 / FPS
+TICK_RATE = 0.05  # 20 FPS
 
 platforms = [
     {'x': 150, 'y': 400, 'w': 200, 'h': 20},
@@ -121,16 +127,14 @@ class Room:
 def generate_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
 
-# --- Game Loop (неблокирующий) ---
+# --- Game Loop ---
 def game_loop():
     logger.info("Game loop started")
     while True:
-        # Если нет активных игр, спим дольше, чтобы снизить нагрузку
         if not any(room.game_active for room in active_rooms.values()):
             gevent.sleep(0.5)
             continue
 
-        # Основной цикл
         for code, room in list(active_rooms.items()):
             if not room.game_active:
                 continue
@@ -260,10 +264,11 @@ def game_loop():
             }
             socketio.emit('game_state', state, room=code)
 
-        # Кооперативно отдаём управление другим greenlet'ам
+            # Важно: дать другим задачам выполниться
+            gevent.sleep(0)
+
         gevent.sleep(TICK_RATE)
 
-# Запускаем игровой цикл как фоновую задачу
 socketio.start_background_task(game_loop)
 
 # --- SocketIO Events ---
