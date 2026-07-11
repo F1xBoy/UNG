@@ -13,6 +13,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 @app.route('/')
 def health():
@@ -413,3 +415,10 @@ if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     logger.info(f"Starting server on port {port}")
     socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    async_mode='gevent',
+    logger=True,
+    engineio_logger=True
+)
