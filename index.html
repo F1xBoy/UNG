@@ -3,271 +3,227 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neon Cyborg Duels</title>
+    <title>Neon Cyborg Duels: Server-Authoritative</title>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <style>
         :root { --bg: #050507; --primary: #bb86fc; --secondary: #03dac6; --danger: #ff0266; --surface: #121216; }
         body { font-family: 'Inter', sans-serif; background: var(--bg); color: #fff; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; flex-direction: column; }
-        
         #menu { background: var(--surface); padding: 40px; border-radius: 20px; text-align: center; border: 1px solid #23232a; box-shadow: 0 0 50px rgba(0,0,0,0.9); z-index: 10; width: 320px; }
         h1 { margin-top: 0; font-size: 34px; letter-spacing: 2px; text-transform: uppercase; color: var(--primary); text-shadow: 0 0 10px var(--primary); }
-        
         input { padding: 12px; font-size: 16px; border-radius: 8px; border: 2px solid #2c2c35; background: #1a1a24; color: #fff; text-transform: uppercase; text-align: center; margin-bottom: 15px; width: 100%; box-sizing: border-box; outline: none; font-weight: bold; }
         input:focus { border-color: var(--secondary); }
-        
         button { padding: 15px; font-size: 16px; font-weight: 900; cursor: pointer; border: none; border-radius: 8px; margin-bottom: 15px; width: 100%; transition: 0.2s; text-transform: uppercase; }
         .btn-create { background: var(--primary); color: #000; box-shadow: 0 0 15px rgba(187,134,252,0.4); }
         .btn-create-pve { background: var(--danger); color: #000; box-shadow: 0 0 15px rgba(255,2,102,0.4); }
         .btn-join { background: var(--secondary); color: #000; box-shadow: 0 0 15px rgba(3, 218, 198, 0.4); }
         button:hover { filter: brightness(1.2); }
-        
         #waiting-screen, #game-container, #win-screen { display: none; }
         #waiting-screen { background: var(--surface); padding: 50px; border-radius: 20px; text-align: center; border: 1px solid var(--primary); }
         .code-display { font-size: 60px; font-weight: 900; color: #fff; letter-spacing: 10px; margin: 20px 0; text-shadow: 0 0 30px var(--primary); background: #0a0a0c; padding: 20px; border-radius: 15px; border: 2px dashed #333; }
-        
         #game-container { position: relative; }
         canvas { background: linear-gradient(180deg, #0a0a0c 0%, #1a1a24 100%); border: 3px solid #2c2c35; border-radius: 12px; box-shadow: 0 0 60px rgba(0,0,0,0.8); }
-        
         .ui-panel { position: absolute; top: 15px; left: 15px; right: 15px; display: flex; justify-content: space-between; align-items: flex-start; z-index: 5; pointer-events: none; }
-        
         .player-info { background: rgba(0,0,0,0.7); padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #333; }
         .player-name { font-weight: bold; font-size: 14px; margin-bottom: 5px; }
         .player-coins { color: gold; font-size: 14px; font-weight: bold; }
-        
         .hp-bar-container { width: 150px; height: 15px; background: #111; border: 2px solid #333; border-radius: 10px; overflow: hidden; margin-top: 5px; }
         .hp-bar { height: 100%; width: 100%; transition: width 0.2s; background: var(--primary); }
-        
         .wave-display { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: bold; color: #ff0266; text-shadow: 0 0 10px #ff0266; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 15px; pointer-events: none;}
-
         #win-screen { position: absolute; inset: 0; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; font-size: 50px; font-weight: 900; flex-direction: column; z-index: 20; }
     </style>
 </head>
 <body>
 
-    <div id="menu">
-        <h1>NEON ARENA</h1>
-        <p style="color: #888; font-size: 14px;">A/D — Движение | W — Прыжок | ПРОБЕЛ — УДАР</p>
-        <input type="text" id="nicknameInput" placeholder="ТВОЙ НИКНЕЙМ">
-        
-        <button class="btn-create-pve" onclick="createRoom('PvE')">Создать PvE (Зомби)</button>
-        <button class="btn-create" onclick="createRoom('PvP')">Создать PvP (Дуэль)</button>
-        
-        <hr style="border: 0; border-top: 1px solid #2c2c35; margin: 20px 0;">
-        
-        <input type="text" id="roomInput" placeholder="КОД КОМНАТЫ" maxlength="4">
-        <button class="btn-join" onclick="joinRoom()">Присоединиться</button>
+<div id="menu">
+    <h1>NEON ARENA</h1>
+    <p style="color: #888; font-size: 14px;">A/D — Движение | W — Прыжок | ПРОБЕЛ — УДАР</p>
+    <input type="text" id="nicknameInput" placeholder="ТВОЙ НИКНЕЙМ">
+    <button class="btn-create-pve" onclick="createRoom('PvE')">Создать PvE (Зомби)</button>
+    <button class="btn-create" onclick="createRoom('PvP')">Создать PvP (Дуэль)</button>
+    <hr style="border: 0; border-top: 1px solid #2c2c35; margin: 20px 0;">
+    <input type="text" id="roomInput" placeholder="КОД КОМНАТЫ" maxlength="4">
+    <button class="btn-join" onclick="joinRoom()">Присоединиться</button>
+</div>
+
+<div id="waiting-screen">
+    <h2 style="color: #888; margin: 0; text-transform: uppercase;">Код арены</h2>
+    <div class="code-display" id="display-code">----</div>
+    <p style="color: var(--primary); font-size: 18px; font-weight: bold; margin: 0;">Ждем игроков...</p>
+</div>
+
+<div id="game-container">
+    <div class="ui-panel" id="ui-panel"></div>
+    <div class="wave-display" id="wave-display" style="display: none;">WAVE 1</div>
+    <canvas id="gameCanvas" width="1000" height="600"></canvas>
+    <div id="win-screen">
+        <span id="win-text" style="color:var(--danger); text-shadow: 0 0 20px var(--danger);">ВЫ ПОГИБЛИ</span>
+        <button onclick="location.reload()" style="margin-top: 30px; width: 250px; background: #fff; color: #000; font-size:20px; padding: 10px;">В МЕНЮ</button>
     </div>
+</div>
 
-    <div id="waiting-screen">
-        <h2 style="color: #888; margin: 0; text-transform: uppercase;">Код арены</h2>
-        <div class="code-display" id="display-code">----</div>
-        <p style="color: var(--primary); font-size: 18px; font-weight: bold; margin: 0;">Ждем игроков...</p>
-    </div>
+<script>
+    // Временно ТОЛЬКО polling для теста
+    const socket = io("https://web-production-91b86.up.railway.app", {
+        transports: ['polling']
+    });
 
-    <div id="game-container">
-        <div class="ui-panel" id="ui-panel"></div>
-        <div class="wave-display" id="wave-display" style="display: none;">WAVE 1</div>
-        <canvas id="gameCanvas" width="1000" height="600"></canvas>
-        <div id="win-screen">
-            <span id="win-text" style="color:var(--danger); text-shadow: 0 0 20px var(--danger);">ВЫ ПОГИБЛИ</span>
-            <button onclick="location.reload()" style="margin-top: 30px; width: 250px; background: #fff; color: #000; font-size:20px; padding: 10px;">В МЕНЮ</button>
-        </div>
-    </div>
+    socket.on('connect', () => console.log('✅ Connected to server:', socket.id));
+    socket.on('connect_error', (e) => console.error('❌ Connection error:', e.message));
+    socket.on('disconnect', () => console.warn('⚠️ Disconnected'));
 
-    <script>
-        const socket = io("web-production-91b86.up.railway.app", {
-            transports: ['websocket', 'polling']
-        });
+    const menu = document.getElementById('menu');
+    const waitingScreen = document.getElementById('waiting-screen');
+    const gameContainer = document.getElementById('game-container');
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const uiPanel = document.getElementById('ui-panel');
+    const waveDisplay = document.getElementById('wave-display');
 
-        socket.on('connect', () => console.log('✅ Connected to server:', socket.id));
-        socket.on('connect_error', (e) => console.error('❌ Connection error:', e.message));
-        socket.on('disconnect', () => console.warn('⚠️ Disconnected'));
+    let roomID = null, gameMode = null, myId = null;
+    let gameState = { players: {}, zombies: {}, wave: 0 };
 
-        const menu = document.getElementById('menu');
-        const waitingScreen = document.getElementById('waiting-screen');
-        const gameContainer = document.getElementById('game-container');
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const uiPanel = document.getElementById('ui-panel');
-        const waveDisplay = document.getElementById('wave-display');
-        
-        let roomID = null;
-        let gameMode = null;
-        let myId = null;
-        let gameState = { players: {}, zombies: {}, wave: 0 };
-        
-        const FLOOR = 550;
-        const platforms = [
-            { x: 150, y: 400, w: 200, h: 20 },
-            { x: 650, y: 400, w: 200, h: 20 },
-            { x: 400, y: 250, w: 200, h: 20 }
-        ];
+    const FLOOR = 550;
+    const platforms = [
+        { x: 150, y: 400, w: 200, h: 20 },
+        { x: 650, y: 400, w: 200, h: 20 },
+        { x: 400, y: 250, w: 200, h: 20 }
+    ];
 
-        const savedNick = localStorage.getItem('nickname');
-        if (savedNick) document.getElementById('nicknameInput').value = savedNick;
+    const savedNick = localStorage.getItem('nickname');
+    if (savedNick) document.getElementById('nicknameInput').value = savedNick;
 
-        function getNick() {
-            let n = document.getElementById('nicknameInput').value.trim();
-            if(!n) n = "Player_" + Math.floor(Math.random()*1000);
-            localStorage.setItem('nickname', n);
-            return n;
+    function getNick() {
+        let n = document.getElementById('nicknameInput').value.trim();
+        if (!n) n = "Player_" + Math.floor(Math.random()*1000);
+        localStorage.setItem('nickname', n);
+        return n;
+    }
+
+    function createRoom(mode) {
+        socket.emit('create_room', { username: getNick(), mode: mode });
+    }
+
+    function joinRoom() {
+        const code = document.getElementById('roomInput').value;
+        if (code.length !== 4) return alert('Код — 4 символа!');
+        socket.emit('join_room', { code: code, username: getNick() });
+    }
+
+    socket.on('room_created', (data) => {
+        menu.style.display = 'none';
+        waitingScreen.style.display = 'block';
+        document.getElementById('display-code').innerText = data.code;
+    });
+
+    socket.on('error', (data) => alert(data.msg));
+
+    socket.on('game_start', (data) => {
+        roomID = data.room; gameMode = data.mode; myId = data.my_id;
+        waitingScreen.style.display = 'none'; menu.style.display = 'none';
+        gameContainer.style.display = 'block';
+        if (gameMode === 'PvE') waveDisplay.style.display = 'block';
+        requestAnimationFrame(drawLoop);
+    });
+
+    socket.on('game_state', (state) => {
+        gameState = state; updateUI();
+    });
+
+    let keys = { 'KeyA': false, 'KeyD': false, 'KeyW': false, 'ArrowLeft': false, 'ArrowRight': false, 'ArrowUp': false };
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+            socket.emit('attack');
+        } else if (keys[e.code] !== undefined && !keys[e.code]) {
+            keys[e.code] = true;
+            sendInput(e.code, true);
         }
-
-        function createRoom(mode) { 
-            socket.emit('create_room', { username: getNick(), mode: mode }); 
+    });
+    window.addEventListener('keyup', (e) => {
+        if (keys[e.code] !== undefined) {
+            keys[e.code] = false;
+            sendInput(e.code, false);
         }
-        
-        function joinRoom() {
-            const code = document.getElementById('roomInput').value;
-            if(code.length !== 4) return alert('Код — 4 символа!');
-            socket.emit('join_room', { code: code, username: getNick() });
+    });
+
+    function sendInput(code, state) {
+        if (code === 'KeyA' || code === 'ArrowLeft') socket.emit('player_input', {action: 'left', state: state});
+        if (code === 'KeyD' || code === 'ArrowRight') socket.emit('player_input', {action: 'right', state: state});
+        if (code === 'KeyW' || code === 'ArrowUp') socket.emit('player_input', {action: 'up', state: state});
+    }
+
+    function updateUI() {
+        let uiHTML = '';
+        let amIDead = false;
+        for (const [sid, p] of Object.entries(gameState.players)) {
+            if (sid === myId && p.hp <= 0) amIDead = true;
+            let hpColor = p.hp > 50 ? p.color : '#ff0266';
+            uiHTML += `<div class="player-info" style="border-color: ${p.color}">
+                <div class="player-name" style="color: ${p.color}">${p.username} ${sid === myId ? '(ТЫ)' : ''}</div>
+                ${gameMode === 'PvE' ? `<div class="player-coins">💰 ${p.coins}</div>` : ''}
+                <div class="hp-bar-container"><div class="hp-bar" style="width: ${Math.max(0, p.hp)}%; background: ${hpColor}; box-shadow: 0 0 10px ${hpColor};"></div></div>
+            </div>`;
         }
+        uiPanel.innerHTML = uiHTML;
+        if (gameMode === 'PvE') waveDisplay.innerText = `WAVE ${gameState.wave}`;
+        if (amIDead) document.getElementById('win-screen').style.display = 'flex';
+    }
 
-        socket.on('room_created', (data) => {
-            menu.style.display = 'none';
-            waitingScreen.style.display = 'block';
-            document.getElementById('display-code').innerText = data.code;
+    function drawMap() {
+        ctx.fillStyle = '#111116';
+        ctx.fillRect(0, FLOOR, canvas.width, canvas.height - FLOOR);
+        ctx.strokeStyle = '#333'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(0, FLOOR); ctx.lineTo(canvas.width, FLOOR); ctx.stroke();
+        platforms.forEach(p => {
+            ctx.fillStyle = '#181820';
+            ctx.fillRect(p.x, p.y, p.w, p.h);
+            ctx.strokeStyle = '#2c2c35'; ctx.lineWidth = 2;
+            ctx.strokeRect(p.x, p.y, p.w, p.h);
         });
+    }
 
-        socket.on('error', (data) => alert(data.msg));
-
-        socket.on('game_start', (data) => {
-            roomID = data.room;
-            gameMode = data.mode;
-            myId = data.my_id;
-            waitingScreen.style.display = 'none';
-            menu.style.display = 'none';
-            gameContainer.style.display = 'block';
-            
-            if(gameMode === 'PvE') waveDisplay.style.display = 'block';
-            
-            requestAnimationFrame(drawLoop);
-        });
-
-        socket.on('game_state', (state) => {
-            gameState = state;
-            updateUI();
-        });
-
-        let keys = { 'KeyA': false, 'KeyD': false, 'KeyW': false, 'ArrowLeft': false, 'ArrowRight': false, 'ArrowUp': false };
-        
-        window.addEventListener('keydown', (e) => { 
-            if(e.code === 'Space') {
-                socket.emit('attack');
-            } else if (keys[e.code] !== undefined && !keys[e.code]) {
-                keys[e.code] = true;
-                sendInput(e.code, true);
-            }
-        });
-        
-        window.addEventListener('keyup', (e) => { 
-            if (keys[e.code] !== undefined) {
-                keys[e.code] = false;
-                sendInput(e.code, false);
-            }
-        });
-
-        function sendInput(code, state) {
-            if(code === 'KeyA' || code === 'ArrowLeft') socket.emit('player_input', {action: 'left', state: state});
-            if(code === 'KeyD' || code === 'ArrowRight') socket.emit('player_input', {action: 'right', state: state});
-            if(code === 'KeyW' || code === 'ArrowUp') socket.emit('player_input', {action: 'up', state: state});
-        }
-
-        function updateUI() {
-            let uiHTML = '';
-            let amIDead = false;
-            
-            for(const [sid, p] of Object.entries(gameState.players)) {
-                if(sid === myId && p.hp <= 0) amIDead = true;
-                let hpColor = p.hp > 50 ? p.color : '#ff0266';
-                uiHTML += `
-                    <div class="player-info" style="border-color: ${p.color}">
-                        <div class="player-name" style="color: ${p.color}">${p.username} ${sid === myId ? '(ТЫ)' : ''}</div>
-                        ${gameMode === 'PvE' ? `<div class="player-coins">💰 ${p.coins}</div>` : ''}
-                        <div class="hp-bar-container">
-                            <div class="hp-bar" style="width: ${Math.max(0, p.hp)}%; background: ${hpColor}; box-shadow: 0 0 10px ${hpColor};"></div>
-                        </div>
-                    </div>
-                `;
-            }
-            uiPanel.innerHTML = uiHTML;
-            if(gameMode === 'PvE') waveDisplay.innerText = `WAVE ${gameState.wave}`;
-
-            if(amIDead) {
-                document.getElementById('win-screen').style.display = 'flex';
-            }
-        }
-
-        function drawMap() {
-            ctx.fillStyle = '#111116';
-            ctx.fillRect(0, FLOOR, canvas.width, canvas.height - FLOOR);
-            ctx.strokeStyle = '#333'; ctx.lineWidth = 4;
-            ctx.beginPath(); ctx.moveTo(0, FLOOR); ctx.lineTo(canvas.width, FLOOR); ctx.stroke();
-            
-            platforms.forEach(p => {
-                ctx.fillStyle = '#181820';
-                ctx.fillRect(p.x, p.y, p.w, p.h);
-                ctx.strokeStyle = '#2c2c35'; ctx.lineWidth = 2;
-                ctx.strokeRect(p.x, p.y, p.w, p.h);
-                ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + p.w, p.y);
-                ctx.strokeStyle = 'var(--secondary)'; ctx.stroke();
-            });
-        }
-
-        function drawCharacter(x, y, color, isFacingRight, isAttacking, isZombie, hp) {
-            if (hp <= 0) return;
-            ctx.save();
-            ctx.translate(x, y);
-            if (!isFacingRight) ctx.scale(-1, 1);
-            
-            ctx.shadowBlur = 15; ctx.shadowColor = color;
-            
-            ctx.fillStyle = '#181820'; ctx.strokeStyle = color; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.rect(-15, -60, 30, 40); ctx.fill(); ctx.stroke();
-            
-            ctx.beginPath(); ctx.arc(0, -75, 16, 0, Math.PI * 2);
-            ctx.fillStyle = isZombie ? '#220000' : '#111'; ctx.fill(); ctx.stroke();
-            ctx.fillStyle = color; ctx.fillRect(2, -80, 14, 6);
-            
-            ctx.lineWidth = 7; ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.moveTo(-7, -20); ctx.lineTo(-12, 0);
-            ctx.moveTo(7, -20); ctx.lineTo(12, 0);
-            ctx.stroke();
-
-            if (isAttacking) {
-                ctx.save();
-                ctx.translate(10, -40);
-                ctx.rotate(0.5 * Math.PI);
-                ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(15, 0); ctx.stroke();
-                ctx.shadowBlur = 30; ctx.strokeStyle = isZombie ? '#ff0000' : '#fff'; ctx.lineWidth = 8;
-                ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(75, 0); ctx.stroke();
-                ctx.restore();
-            } else {
-                ctx.beginPath(); ctx.moveTo(-5, -50); ctx.lineTo(5, -35); ctx.lineTo(20, -40); ctx.stroke();
-                if(!isZombie) {
-                    ctx.shadowBlur = 20; ctx.strokeStyle = '#fff'; ctx.lineWidth = 5;
-                    ctx.beginPath(); ctx.moveTo(20, -40); ctx.lineTo(5, -90); ctx.stroke();
-                }
-            }
-            
+    function drawCharacter(x, y, color, isFacingRight, isAttacking, isZombie, hp) {
+        if (hp <= 0) return;
+        ctx.save();
+        ctx.translate(x, y);
+        if (!isFacingRight) ctx.scale(-1, 1);
+        ctx.shadowBlur = 15; ctx.shadowColor = color;
+        ctx.fillStyle = '#181820'; ctx.strokeStyle = color; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.rect(-15, -60, 30, 40); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, -75, 16, 0, Math.PI*2);
+        ctx.fillStyle = isZombie ? '#220000' : '#111'; ctx.fill(); ctx.stroke();
+        ctx.fillStyle = color; ctx.fillRect(2, -80, 14, 6);
+        ctx.lineWidth = 7; ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-7, -20); ctx.lineTo(-12, 0);
+        ctx.moveTo(7, -20); ctx.lineTo(12, 0);
+        ctx.stroke();
+        if (isAttacking) {
+            ctx.save(); ctx.translate(10, -40); ctx.rotate(0.5*Math.PI);
+            ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(15,0); ctx.stroke();
+            ctx.shadowBlur = 30; ctx.strokeStyle = isZombie ? '#ff0000' : '#fff'; ctx.lineWidth = 8;
+            ctx.beginPath(); ctx.moveTo(15,0); ctx.lineTo(75,0); ctx.stroke();
             ctx.restore();
+        } else {
+            ctx.beginPath(); ctx.moveTo(-5,-50); ctx.lineTo(5,-35); ctx.lineTo(20,-40); ctx.stroke();
+            if (!isZombie) {
+                ctx.shadowBlur = 20; ctx.strokeStyle = '#fff'; ctx.lineWidth = 5;
+                ctx.beginPath(); ctx.moveTo(20,-40); ctx.lineTo(5,-90); ctx.stroke();
+            }
         }
+        ctx.restore();
+    }
 
-        function drawLoop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawMap();
-            
-            for(const z of Object.values(gameState.zombies)) {
-                drawCharacter(z.x, z.y, '#ff0266', z.isFacingRight, z.isAttacking, true, z.hp);
-            }
-            
-            for(const [sid, p] of Object.entries(gameState.players)) {
-                drawCharacter(p.x, p.y, p.color, p.isFacingRight, p.isAttacking, false, p.hp);
-            }
-            
-            requestAnimationFrame(drawLoop);
+    function drawLoop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawMap();
+        for (const z of Object.values(gameState.zombies)) {
+            drawCharacter(z.x, z.y, '#ff0266', z.isFacingRight, z.isAttacking, true, z.hp);
         }
-    </script>
+        for (const [sid, p] of Object.entries(gameState.players)) {
+            drawCharacter(p.x, p.y, p.color, p.isFacingRight, p.isAttacking, false, p.hp);
+        }
+        requestAnimationFrame(drawLoop);
+    }
+</script>
 </body>
 </html>
