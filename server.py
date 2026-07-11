@@ -1,10 +1,11 @@
-# ⚠️ Monkey-patch при использовании Gunicorn с GeventWebSocketWorker можно не делать явно –
-# воркер сам применяет патчи перед загрузкой приложения. Оставлен для локального запуска.
+from gevent import monkey
+monkey.patch_all()
+
 import os
 import random
 import string
-from flask import Flask
-from flask_socketio import SocketIO, emit, join_room, request   # ← правильный request
+from flask import Flask, request
+from flask_socketio import SocketIO, emit, join_room
 
 app = Flask(__name__)
 socketio = SocketIO(
@@ -116,7 +117,7 @@ def game_loop():
             if not room.game_active:
                 continue
 
-            # Update Players
+            # Update Players (ваш старый код)
             for sid, p in room.players.items():
                 if p.hp <= 0:
                     continue
@@ -160,7 +161,7 @@ def game_loop():
                     p.y = FLOOR
                     p.vy = 0
 
-            # Update PvE (Zombies)
+            # Update PvE (Zombies) - ваш старый код
             if room.mode == "PvE":
                 if len(room.zombies) == 0 and room.zombies_to_spawn == 0:
                     room.wave += 1
@@ -248,7 +249,8 @@ socketio.start_background_task(game_loop)
 # --- SocketIO Events ---
 @socketio.on('create_room')
 def on_create(data):
-    sid = request.sid                  # теперь работает
+    sid = request.sid
+    print(f"[CREATE ROOM] sid={sid}, data={data}")  # лог
     username = str(data.get('username', 'Player')).strip()
     if not username:
         username = "Player"
@@ -268,14 +270,18 @@ def on_create(data):
     active_rooms[code] = room
     connected_players[sid] = {'username': username, 'room': code}
 
-    emit('room_created', {'code': code})
+    emit('room_created', {'code': code})  # отправляем только создателю
+    print(f"[ROOM CREATED] code={code}, mode={mode}")
+
     if mode == "PvE":
         room.game_active = True
         emit('game_start', {'room': code, 'mode': mode, 'my_id': sid})
+        print(f"[GAME START PvE] sent to {sid}")
 
 @socketio.on('join_room')
 def on_join(data):
     sid = request.sid
+    print(f"[JOIN ROOM] sid={sid}, data={data}")  # лог
     code = str(data.get('code', '')).strip().upper()
     username = str(data.get('username', 'Player')).strip()
     if not username:
@@ -366,6 +372,7 @@ def handle_attack():
 @socketio.on('disconnect')
 def on_disconnect():
     sid = request.sid
+    print(f"[DISCONNECT] sid={sid}")
     if sid in connected_players:
         code = connected_players[sid]['room']
         if code in active_rooms:
@@ -379,9 +386,6 @@ def on_disconnect():
         del connected_players[sid]
 
 if __name__ == '__main__':
-    # Локальный запуск (без Gunicorn)
-    from gevent import monkey
-    monkey.patch_all()
     port = int(os.environ.get("PORT", 5000))
     print(f"Server started on port {port}")
     socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
