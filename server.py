@@ -1,13 +1,25 @@
-from gevent import monkey
-monkey.patch_all()
-
 import os
 import random
 import string
+import logging
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 from flask import Flask, request
 from flask_socketio import SocketIO, emit, join_room
+import gevent
+from gevent import monkey
+monkey.patch_all()
 
 app = Flask(__name__)
+
+# Health check endpoint
+@app.route('/')
+def health():
+    return 'OK'
+
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
@@ -27,11 +39,11 @@ try:
         firebase_admin.initialize_app(cred)
         db_client = firestore.client()
         USE_FIREBASE = True
-        print("Firebase initialized successfully!")
+        logger.info("Firebase initialized successfully!")
     else:
-        print("firebase-key.json not found. Running without Firebase.")
+        logger.warning("firebase-key.json not found. Running without Firebase.")
 except Exception as e:
-    print(f"Firebase Init Error: {e}")
+    logger.error(f"Firebase Init Error: {e}")
 
 def get_player_coins(username):
     if not USE_FIREBASE or not username: return 0
@@ -40,7 +52,7 @@ def get_player_coins(username):
         if doc.exists:
             return doc.to_dict().get('coins', 0)
     except Exception as e:
-        print(f"Firebase read error: {e}")
+        logger.error(f"Firebase read error: {e}")
     return 0
 
 def update_player_coins(username, coins):
@@ -48,7 +60,7 @@ def update_player_coins(username, coins):
     try:
         db_client.collection('players').document(username).set({'coins': coins}, merge=True)
     except Exception as e:
-        print(f"Firebase write error: {e}")
+        logger.error(f"Firebase write error: {e}")
 
 # --- Physics & Game Constants ---
 GRAVITY = 0.7
@@ -109,15 +121,21 @@ class Room:
 def generate_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
 
-# --- Main Game Loop ---
+# --- Game Loop (неблокирующий) ---
 def game_loop():
+    logger.info("Game loop started")
     while True:
-        socketio.sleep(TICK_RATE)
+        # Если нет активных игр, спим дольше, чтобы снизить нагрузку
+        if not any(room.game_active for room in active_rooms.values()):
+            gevent.sleep(0.5)
+            continue
+
+        # Основной цикл
         for code, room in list(active_rooms.items()):
             if not room.game_active:
                 continue
 
-            # Update Players (ваш старый код)
+            # Update Players
             for sid, p in room.players.items():
                 if p.hp <= 0:
                     continue
@@ -155,13 +173,12 @@ def game_loop():
                             p.y = plat['y']
                             p.vy = 0
 
-                if p.x < 30: p.x = 30
-                if p.x > 970: p.x = 970
+                p.x = max(30, min(970, p.x))
                 if p.y > FLOOR:
                     p.y = FLOOR
                     p.vy = 0
 
-            # Update PvE (Zombies) - ваш старый код
+            # Update PvE (Zombies)
             if room.mode == "PvE":
                 if len(room.zombies) == 0 and room.zombies_to_spawn == 0:
                     room.wave += 1
@@ -216,8 +233,7 @@ def game_loop():
                                 z.y = plat['y']
                                 z.vy = 0
 
-                    if z.x < 30: z.x = 30
-                    if z.x > 970: z.x = 970
+                    z.x = max(30, min(970, z.x))
                     if z.y > FLOOR:
                         z.y = FLOOR
                         z.vy = 0
@@ -244,13 +260,17 @@ def game_loop():
             }
             socketio.emit('game_state', state, room=code)
 
+        # Кооперативно отдаём управление другим greenlet'ам
+        gevent.sleep(TICK_RATE)
+
+# Запускаем игровой цикл как фоновую задачу
 socketio.start_background_task(game_loop)
 
 # --- SocketIO Events ---
 @socketio.on('create_room')
 def on_create(data):
     sid = request.sid
-    print(f"[CREATE ROOM] sid={sid}, data={data}")  # лог
+    logger.info(f"CREATE ROOM: sid={sid}, data={data}")
     username = str(data.get('username', 'Player')).strip()
     if not username:
         username = "Player"
@@ -270,18 +290,17 @@ def on_create(data):
     active_rooms[code] = room
     connected_players[sid] = {'username': username, 'room': code}
 
-    emit('room_created', {'code': code})  # отправляем только создателю
-    print(f"[ROOM CREATED] code={code}, mode={mode}")
+    emit('room_created', {'code': code})
+    logger.info(f"ROOM CREATED: {code}, mode={mode}")
 
     if mode == "PvE":
         room.game_active = True
         emit('game_start', {'room': code, 'mode': mode, 'my_id': sid})
-        print(f"[GAME START PvE] sent to {sid}")
+        logger.info(f"GAME START (PvE) sent to {sid}")
 
 @socketio.on('join_room')
 def on_join(data):
     sid = request.sid
-    print(f"[JOIN ROOM] sid={sid}, data={data}")  # лог
     code = str(data.get('code', '')).strip().upper()
     username = str(data.get('username', 'Player')).strip()
     if not username:
@@ -372,7 +391,7 @@ def handle_attack():
 @socketio.on('disconnect')
 def on_disconnect():
     sid = request.sid
-    print(f"[DISCONNECT] sid={sid}")
+    logger.info(f"DISCONNECT: {sid}")
     if sid in connected_players:
         code = connected_players[sid]['room']
         if code in active_rooms:
@@ -387,5 +406,5 @@ def on_disconnect():
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    print(f"Server started on port {port}")
+    logger.info(f"Starting server on port {port}")
     socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
