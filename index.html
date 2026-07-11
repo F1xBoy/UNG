@@ -3,81 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neon Arena (Prototype)</title>
+    <title>Stickman Neon Duels</title>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <style>
-        :root { --bg: #0a0a0c; --primary: #bb86fc; --secondary: #03dac6; }
+        :root { --bg: #0a0a0c; --primary: #bb86fc; --secondary: #03dac6; --danger: #ff0266; }
         body { font-family: 'Inter', sans-serif; background: var(--bg); color: #fff; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; flex-direction: column; }
-        #menu { background: #16161a; padding: 30px; border-radius: 20px; text-align: center; border: 1px solid #23232a; box-shadow: 0 0 30px rgba(0,0,0,0.8); z-index: 10; }
-        input { padding: 10px; font-size: 16px; border-radius: 8px; border: 2px solid #2c2c35; background: #1f1f25; color: #fff; text-transform: uppercase; text-align: center; margin-bottom: 15px; width: 80%; }
-        button { padding: 12px 20px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; border-radius: 8px; margin: 5px; width: 100%; transition: 0.2s; }
+        #menu { background: #16161a; padding: 40px; border-radius: 20px; text-align: center; border: 1px solid #23232a; box-shadow: 0 0 40px rgba(0,0,0,0.8); z-index: 10; }
+        input { padding: 12px; font-size: 18px; border-radius: 8px; border: 2px solid #2c2c35; background: #1f1f25; color: #fff; text-transform: uppercase; text-align: center; margin-bottom: 20px; width: 80%; }
+        button { padding: 15px 25px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; border-radius: 8px; margin: 5px; width: 100%; transition: 0.2s; text-transform: uppercase; letter-spacing: 1px;}
         .btn-create { background: var(--primary); color: #000; }
         .btn-join { background: var(--secondary); color: #000; }
         button:hover { transform: scale(1.05); filter: brightness(1.2); }
         
-        /* Игровой холст скрыт до старта */
-        canvas { display: none; background: #121216; border: 2px solid #2c2c35; border-radius: 10px; box-shadow: 0 0 40px rgba(187,134,252,0.1); }
-        #ui { display: none; position: absolute; top: 20px; font-size: 24px; font-weight: bold; color: #888; text-shadow: 0 0 10px currentColor; }
+        #game-container { display: none; position: relative; }
+        canvas { background: #121216; border: 3px solid #2c2c35; border-radius: 10px; box-shadow: 0 0 50px rgba(187,134,252,0.15); }
+        
+        .ui-panel { position: absolute; top: 20px; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; }
+        .hp-bar-container { width: 300px; height: 25px; background: #222; border: 2px solid #444; border-radius: 12px; overflow: hidden; }
+        .hp-bar { height: 100%; width: 100%; transition: width 0.1s linear; }
+        #my-hp { background: var(--primary); box-shadow: 0 0 10px var(--primary); }
+        #enemy-hp { background: var(--secondary); box-shadow: 0 0 10px var(--secondary); }
+        #room-display { position: absolute; top: -30px; left: 50%; transform: translateX(-50%); color: #888; font-weight: bold; letter-spacing: 2px;}
+        #win-screen { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; font-size: 40px; font-weight: bold; text-shadow: 0 0 20px currentColor; flex-direction: column; z-index: 20;}
     </style>
 </head>
 <body>
 
     <div id="menu">
-        <h1 style="color: var(--primary); margin-top:0;">NEON ARENA</h1>
-        <p style="color: #666;">Прототип физики для портала</p>
-        <button class="btn-create" onclick="createRoom()">Создать комнату</button>
-        <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
-        <input type="text" id="roomInput" placeholder="Код комнаты" maxlength="4">
-        <button class="btn-join" onclick="joinRoom()">Войти в замес</button>
-        <div id="status" style="margin-top: 15px; color: #b3b3b3;"></div>
+        <h1 style="color: var(--primary); margin-top:0; font-size: 36px; text-shadow: 0 0 15px var(--primary);">STICKMAN DUELS</h1>
+        <p style="color: #666; margin-bottom: 30px;">Стрелочки / WASD - Движение <br> Пробел - Удар рукой</p>
+        <button class="btn-create" onclick="createRoom()">Создать арену</button>
+        <hr style="border: 0; border-top: 1px solid #333; margin: 25px 0;">
+        <input type="text" id="roomInput" placeholder="КОД (4 БУКВЫ)" maxlength="4">
+        <button class="btn-join" onclick="joinRoom()">Ворваться</button>
+        <div id="status" style="margin-top: 20px; color: var(--danger); font-weight: bold;"></div>
     </div>
 
-    <div id="ui">АРЕНА</div>
-    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <div id="game-container">
+        <div id="room-display"></div>
+        <div class="ui-panel">
+            <div class="hp-bar-container"><div id="my-hp" class="hp-bar"></div></div>
+            <div style="font-weight: 900; font-size: 24px; color: #555;">VS</div>
+            <div class="hp-bar-container"><div id="enemy-hp" class="hp-bar"></div></div>
+        </div>
+        <canvas id="gameCanvas" width="900" height="500"></canvas>
+        <div id="win-screen">
+            <span id="win-text"></span>
+            <button onclick="location.reload()" style="margin-top: 20px; width: 200px; background: #fff; color: #000;">Выйти</button>
+        </div>
+    </div>
 
     <script>
         // =========================================================
-        // БРО, ВСТАВЛЯЙ ССЫЛКУ С RENDER СЮДА!
         const socket = io("https://ung-6k09.onrender.com");
         // =========================================================
 
         const menu = document.getElementById('menu');
+        const gameContainer = document.getElementById('game-container');
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const ui = document.getElementById('ui');
         
         let roomID = null;
         let gameActive = false;
 
-        // Физика арены
-        const GRAVITY = 0.6;
-        const FLOOR = 350;
+        const GRAVITY = 0.8;
+        const FLOOR = 450;
+        const JUMP_FORCE = -15;
+        const SPEED = 6;
+        const ATTACK_RANGE = 60;
+        const ATTACK_DAMAGE = 10;
 
-        // Игроки (квадраты-прототипы стикменов)
-        let myPlayer = { x: 100, y: 100, vx: 0, vy: 0, w: 30, h: 60, color: 'var(--primary)', speed: 5, jump: -12 };
-        let enemy = { x: 600, y: 100, w: 30, h: 60, color: 'var(--secondary)' };
+        // Структура игрока
+        class Player {
+            constructor(x, color, isFacingRight) {
+                this.x = x;
+                this.y = 100;
+                this.vx = 0;
+                this.vy = 0;
+                this.hp = 100;
+                this.color = color;
+                this.isFacingRight = isFacingRight;
+                this.isAttacking = false;
+                this.attackCooldown = 0;
+            }
+        }
 
-        // Управление
-        let keys = { 'ArrowLeft': false, 'ArrowRight': false, 'ArrowUp': false, 'a': false, 'd': false, 'w': false };
+        let me = new Player(200, 'var(--primary)', true);
+        let enemy = new Player(700, 'var(--secondary)', false);
 
-        // Слушатели кнопок
-        window.addEventListener('keydown', (e) => { if (keys.hasOwnProperty(e.key)) keys[e.key] = true; });
-        window.addEventListener('keyup', (e) => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+        let keys = {};
+        window.addEventListener('keydown', (e) => { keys[e.code] = true; });
+        window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
-        // --- Сетевая логика ---
         function createRoom() {
-            document.getElementById('status').innerText = "Коннектимся...";
-            socket.emit('create_room');
+            document.getElementById('status').innerText = "Поднимаем сервак...";
+            socket.emit('create_room', {});
         }
 
         function joinRoom() {
             const code = document.getElementById('roomInput').value;
-            if(code.length !== 4) return alert('Код — 4 символа!');
+            if(code.length !== 4) return alert('Код — 4 символа, бро!');
             socket.emit('join_room', { code: code });
         }
 
         socket.on('room_created', (data) => {
-            document.getElementById('status').innerHTML = `Ждем врага... Твой код: <strong style="color: var(--primary); font-size: 20px;">${data.code}</strong>`;
+            document.getElementById('status').innerHTML = `ТВОЙ КОД: <span style="color:#fff; font-size:24px;">${data.code}</span><br><span style="font-size:14px; color:#888;">Кидай другу и жди!</span>`;
         });
 
         socket.on('error', (data) => alert(data.msg));
@@ -85,90 +115,176 @@
         socket.on('game_start', (data) => {
             roomID = data.room;
             menu.style.display = 'none';
-            canvas.style.display = 'block';
-            ui.style.display = 'block';
-            ui.innerText = `КОМНАТА: ${roomID}`;
+            gameContainer.style.display = 'block';
+            document.getElementById('room-display').innerText = `ROOM: ${roomID}`;
             
-            // Если ты хост - стоишь слева, клиент - справа
             if (data.role === 'client') {
-                myPlayer.x = 600;
-                myPlayer.color = 'var(--secondary)';
-                enemy.color = 'var(--primary)';
+                me.x = 700; me.color = 'var(--secondary)'; me.isFacingRight = false;
+                enemy.x = 200; enemy.color = 'var(--primary)'; enemy.isFacingRight = true;
+                document.getElementById('my-hp').style.background = 'var(--secondary)';
+                document.getElementById('my-hp').style.boxShadow = '0 0 10px var(--secondary)';
+                document.getElementById('enemy-hp').style.background = 'var(--primary)';
+                document.getElementById('enemy-hp').style.boxShadow = '0 0 10px var(--primary)';
             }
             gameActive = true;
             gameLoop();
-            
-            // Запускаем отправку своих координат на сервер (30 раз в секунду)
-            setInterval(sendPosition, 1000 / 30);
+            setInterval(sendData, 1000 / 40); // 40 тиков в секунду
         });
 
-        socket.on('enemy_pos', (data) => {
-            // Обновляем позицию врага по данным с сервера
+        socket.on('enemy_data', (data) => {
             enemy.x = data.x;
             enemy.y = data.y;
+            enemy.isFacingRight = data.isFacingRight;
+            enemy.isAttacking = data.isAttacking;
+            
+            // Если враг говорит, что у нас меньше ХП (прошёл удар)
+            if (data.enemyHp < me.hp) {
+                me.hp = data.enemyHp;
+                updateHPUI();
+                checkDeath();
+            }
         });
 
         socket.on('opponent_left', () => {
-            alert("Соперник сбежал с арены!");
+            if(!gameActive) return;
+            alert("Противник ливнул от страха!");
             location.reload();
         });
 
-        function sendPosition() {
-            if (gameActive) {
-                socket.emit('sync_pos', { room: roomID, x: myPlayer.x, y: myPlayer.y });
+        function sendData() {
+            if (!gameActive) return;
+            socket.emit('sync_data', { 
+                room: roomID, 
+                x: me.x, y: me.y, 
+                isFacingRight: me.isFacingRight, 
+                isAttacking: me.isAttacking,
+                enemyHp: enemy.hp // Отправляем серверу, сколько ХП мы оставили врагу
+            });
+        }
+
+        function attack() {
+            if (me.attackCooldown > 0) return;
+            me.isAttacking = true;
+            me.attackCooldown = 25; // Задержка между ударами
+
+            // Проверка попадания (Коллизия)
+            let reach = me.isFacingRight ? me.x + ATTACK_RANGE : me.x - ATTACK_RANGE;
+            let hit = false;
+
+            if (me.isFacingRight && enemy.x > me.x && enemy.x < reach && Math.abs(me.y - enemy.y) < 60) hit = true;
+            if (!me.isFacingRight && enemy.x < me.x && enemy.x > reach && Math.abs(me.y - enemy.y) < 60) hit = true;
+
+            if (hit) {
+                enemy.hp -= ATTACK_DAMAGE;
+                updateHPUI();
+                checkDeath();
+            }
+
+            setTimeout(() => { me.isAttacking = false; }, 150); // Длительность анимации
+        }
+
+        function updateHPUI() {
+            document.getElementById('my-hp').style.width = Math.max(0, me.hp) + '%';
+            document.getElementById('enemy-hp').style.width = Math.max(0, enemy.hp) + '%';
+        }
+
+        function checkDeath() {
+            if (me.hp <= 0 || enemy.hp <= 0) {
+                gameActive = false;
+                const winScreen = document.getElementById('win-screen');
+                const winText = document.getElementById('win-text');
+                winScreen.style.display = 'flex';
+                if (me.hp > 0) {
+                    winText.innerText = "ПОБЕДА! ВРАГ УНИЧТОЖЕН";
+                    winText.style.color = 'var(--secondary)';
+                } else {
+                    winText.innerText = "ПОТРАЧЕНО. ТЕБЯ СНЕСЛИ";
+                    winText.style.color = 'var(--danger)';
+                }
             }
         }
 
-        // --- Игровой цикл и физика ---
         function updatePhysics() {
-            // Движение влево-вправо
-            if (keys['ArrowLeft'] || keys['a']) myPlayer.vx = -myPlayer.speed;
-            else if (keys['ArrowRight'] || keys['d']) myPlayer.vx = myPlayer.speed;
-            else myPlayer.vx = 0;
+            if (me.attackCooldown > 0) me.attackCooldown--;
 
-            // Прыжок (только если на полу)
-            if ((keys['ArrowUp'] || keys['w']) && myPlayer.y + myPlayer.h >= FLOOR) {
-                myPlayer.vy = myPlayer.jump;
-            }
+            // Управление
+            if (keys['KeyA'] || keys['ArrowLeft']) { me.vx = -SPEED; me.isFacingRight = false; }
+            else if (keys['KeyD'] || keys['ArrowRight']) { me.vx = SPEED; me.isFacingRight = true; }
+            else { me.vx = 0; }
 
-            // Применяем гравитацию
-            myPlayer.vy += GRAVITY;
+            // Прыжок
+            if ((keys['KeyW'] || keys['ArrowUp']) && me.y >= FLOOR) { me.vy = JUMP_FORCE; }
+
+            // Атака
+            if (keys['Space']) { attack(); keys['Space'] = false; } // false чтобы не зажимать
+
+            me.vy += GRAVITY;
+            me.x += me.vx;
+            me.y += me.vy;
+
+            // Стены
+            if (me.x < 20) me.x = 20;
+            if (me.x > canvas.width - 20) me.x = canvas.width - 20;
+
+            // Пол
+            if (me.y > FLOOR) { me.y = FLOOR; me.vy = 0; }
+        }
+
+        // Рисуем стикмена
+        function drawStickman(p) {
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
             
-            // Меняем позицию
-            myPlayer.x += myPlayer.vx;
-            myPlayer.y += myPlayer.vy;
+            // Свечение
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = p.color;
 
-            // Коллизия со стенами арены
-            if (myPlayer.x < 0) myPlayer.x = 0;
-            if (myPlayer.x + myPlayer.w > canvas.width) myPlayer.x = canvas.width - myPlayer.w;
-
-            // Коллизия с полом
-            if (myPlayer.y + myPlayer.h > FLOOR) {
-                myPlayer.y = FLOOR - myPlayer.h;
-                myPlayer.vy = 0;
+            ctx.beginPath();
+            // Голова (y-60)
+            ctx.arc(p.x, p.y - 60, 12, 0, Math.PI * 2);
+            
+            // Туловище (от головы до пояса)
+            ctx.moveTo(p.x, p.y - 48);
+            ctx.lineTo(p.x, p.y - 15);
+            
+            // Ноги (от пояса к полу)
+            ctx.moveTo(p.x, p.y - 15);
+            ctx.lineTo(p.x - 15, p.y); // Левая нога
+            ctx.moveTo(p.x, p.y - 15);
+            ctx.lineTo(p.x + 15, p.y); // Правая нога
+            
+            // Руки
+            ctx.moveTo(p.x, p.y - 35);
+            if (p.isAttacking) {
+                // Прямой удар
+                let punchX = p.isFacingRight ? p.x + 35 : p.x - 35;
+                ctx.lineTo(punchX, p.y - 35);
+            } else {
+                // Опущенные руки
+                ctx.lineTo(p.x - 15, p.y - 15);
+                ctx.moveTo(p.x, p.y - 35);
+                ctx.lineTo(p.x + 15, p.y - 15);
             }
+            
+            ctx.stroke();
+            ctx.shadowBlur = 0; // Сбрасываем свечение
         }
 
         function draw() {
-            // Очищаем экран
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Рисуем пол
-            ctx.fillStyle = '#2c2c35';
+            // Пол
+            ctx.fillStyle = '#1c1c24';
             ctx.fillRect(0, FLOOR, canvas.width, canvas.height - FLOOR);
+            ctx.strokeStyle = '#2c2c35';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(0, FLOOR); ctx.lineTo(canvas.width, FLOOR); ctx.stroke();
 
-            // Рисуем меня
-            ctx.fillStyle = myPlayer.color;
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = myPlayer.color;
-            ctx.fillRect(myPlayer.x, myPlayer.y, myPlayer.w, myPlayer.h);
-
-            // Рисуем врага
-            ctx.fillStyle = enemy.color;
-            ctx.shadowColor = enemy.color;
-            ctx.fillRect(enemy.x, enemy.y, enemy.w, enemy.h);
-            
-            ctx.shadowBlur = 0; // отключаем свечение для остального
+            // Игроки
+            drawStickman(enemy);
+            drawStickman(me);
         }
 
         function gameLoop() {
