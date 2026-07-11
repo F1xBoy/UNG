@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Neon Arena</title>
+  <title>Neon Arena – Полная версия</title>
   <style>
     :root { --bg: #0b0b10; --primary: #bb86fc; --danger: #ff0266; --surface: #1a1a2e; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -11,29 +11,30 @@
       font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #fff;
       display: flex; justify-content: center; align-items: center; min-height: 100vh; text-align: center;
     }
-    .container { background: var(--surface); padding: 30px; border-radius: 20px; width: 360px; box-shadow: 0 0 30px rgba(187,134,252,0.3); border: 1px solid #333; }
-    h1 { color: var(--primary); margin-bottom: 20px; }
-    input, button { width: 100%; padding: 14px; margin: 10px 0; border-radius: 8px; border: none; font-size: 16px; font-weight: bold; outline: none; }
-    input { background: #222; color: #fff; text-align: center; text-transform: uppercase; border: 2px solid #444; }
-    input:focus { border-color: var(--primary); }
-    button { cursor: pointer; text-transform: uppercase; font-weight: 900; transition: opacity 0.2s; }
-    .btn-pve { background: var(--danger); color: #000; }
+    .container { background: var(--surface); padding: 20px; border-radius: 20px; width: 360px; box-shadow: 0 0 30px rgba(187,134,252,0.3); border: 1px solid #333; }
+    h1 { color: var(--primary); margin-bottom: 15px; }
+    input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: none; font-size: 16px; font-weight: bold; outline: none; }
+    input, select { background: #222; color: #fff; text-align: center; border: 2px solid #444; }
+    button { cursor: pointer; text-transform: uppercase; font-weight: 900; background: var(--danger); color: #000; }
     button:hover { opacity: 0.8; }
     .hidden { display: none !important; }
-    #game-screen { position: relative; }
-    canvas { background: linear-gradient(180deg, #0a0a0c 0%, #1a1a24 100%); border: 2px solid #333; border-radius: 10px; display: block; margin: 0 auto; }
+    #game-screen { position: relative; width: 900px; height: 550px; }
+    canvas { background: #0a0a0c; border: 2px solid #333; border-radius: 10px; display: block; }
     .ui-panel {
-      position: absolute; top: 10px; left: 10px; right: 10px;
-      display: flex; justify-content: space-between; color: #fff; font-size: 14px;
-      pointer-events: none;
+      position: absolute; top: 10px; left: 10px; right: 10px; display: flex;
+      justify-content: space-between; align-items: flex-start; pointer-events: none;
+      color: #fff; font-size: 14px; text-shadow: 2px 2px 2px #000;
     }
-    .wave-display { color: var(--danger); font-weight: bold; font-size: 20px; }
-    .coins-display { color: gold; font-weight: bold; }
     .game-over {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0,0,0,0.8); display: flex; flex-direction: column;
       justify-content: center; align-items: center; font-size: 40px; font-weight: 900;
       color: var(--danger); text-shadow: 0 0 20px var(--danger);
+    }
+    .weapon-indicator {
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.7); padding: 5px 15px; border-radius: 15px;
+      font-size: 16px; font-weight: bold; color: #fff; border: 1px solid #666;
     }
   </style>
 </head>
@@ -41,278 +42,522 @@
 
 <div id="menu" class="container">
   <h1>NEON ARENA</h1>
-  <p style="font-size:14px; color:#888; margin-bottom:10px;">A/D — движение | W — прыжок | ПРОБЕЛ — удар</p>
-  <input id="nickname" placeholder="ТВОЙ НИКНЕЙМ" maxlength="15" />
-  <button class="btn-pve" onclick="startGame()">Создать PvE (Зомби)</button>
-  <p style="margin-top:15px; color:#666; font-size:12px;">Локальная версия — без сервера</p>
+  <input id="nickname" placeholder="ТВОЙ НИКНЕЙМ" maxlength="15">
+  <select id="mapSelect">
+    <option value="arena">Арена</option>
+    <option value="rooftops">Крыши</option>
+    <option value="dungeon">Подземелье</option>
+  </select>
+  <button onclick="startGame()">ИГРАТЬ</button>
+  <p style="margin-top:10px; color:#666; font-size:12px;">Оружие: 1 - Меч, 2 - Пистолет, 3 - Дробовик</p>
 </div>
 
 <div id="game-screen" class="hidden">
-  <canvas id="canvas" width="800" height="500"></canvas>
-  <div class="ui-panel" id="ui-panel"></div>
-  <div id="game-over" class="game-over hidden">
+  <canvas id="canvas" width="900" height="550"></canvas>
+  <div class="ui-panel" id="uiPanel"></div>
+  <div class="weapon-indicator" id="weaponIndicator">МЕЧ</div>
+  <div id="gameOver" class="game-over hidden">
     <span>ВЫ ПОГИБЛИ</span>
-    <button onclick="location.reload()" style="width:200px; margin-top:20px; background:#fff; color:#000;">В МЕНЮ</button>
+    <button onclick="location.reload()">В МЕНЮ</button>
   </div>
 </div>
 
 <script>
-  // ---------- КОНСТАНТЫ И СОСТОЯНИЕ ----------
-  const FLOOR = 420;
-  const GRAVITY = 0.6;
-  const JUMP_FORCE = -12;
-  const SPEED = 5;
-  const ZOMBIE_SPEED = 1.5;
-  const TICK_RATE = 1000 / 30; // 30 FPS
+  // ==================== КОНСТАНТЫ ====================
+  const FLOOR_Y = 500; // уровень пола по умолчанию, но зависит от карты
 
-  const platforms = [
-    { x: 100, y: 300, w: 180, h: 15 },
-    { x: 520, y: 300, w: 180, h: 15 },
-    { x: 310, y: 180, w: 180, h: 15 }
-  ];
+  // Оружие
+  const WEAPONS = {
+    melee: { name: 'Меч', damage: 30, range: 55, cooldown: 400, ammo: Infinity, type: 'melee' },
+    pistol: { name: 'Пистолет', damage: 15, range: 350, cooldown: 350, ammo: 12, maxAmmo: 12, spareAmmo: 24, type: 'ranged', bulletSpeed: 10 },
+    shotgun: { name: 'Дробовик', damage: 8, pellets: 5, range: 220, cooldown: 900, ammo: 6, maxAmmo: 6, spareAmmo: 18, type: 'ranged', bulletSpeed: 8 }
+  };
 
-  // Игрок
+  // ==================== КЛАССЫ ====================
+  class Particle {
+    constructor(x, y, color, life = 20) {
+      this.x = x; this.y = y;
+      this.vx = (Math.random() - 0.5) * 4;
+      this.vy = (Math.random() - 2) * 3 - 2;
+      this.life = life; this.maxLife = life;
+      this.color = color;
+    }
+    update() { this.x += this.vx; this.y += this.vy; this.vy += 0.1; this.life--; }
+  }
+
+  class Pickup {
+    constructor(x, y, type) {
+      this.x = x; this.y = y;
+      this.type = type; // 'health' или 'ammo'
+      this.active = true;
+      this.w = 20; this.h = 20;
+    }
+  }
+
+  class Bullet {
+    constructor(x, y, vx, vy, damage, range) {
+      this.x = x; this.y = y;
+      this.vx = vx; this.vy = vy;
+      this.damage = damage;
+      this.startX = x; this.startY = y;
+      this.range = range;
+      this.alive = true;
+    }
+    update() {
+      this.x += this.vx; this.y += this.vy;
+      if (Math.hypot(this.x - this.startX, this.y - this.startY) > this.range) this.alive = false;
+    }
+  }
+
+  class Zombie {
+    constructor(id, x, y, type = 'normal') {
+      this.id = id; this.x = x; this.y = y;
+      this.spawnY = y; // конечная точка появления
+      this.vx = 0; this.vy = 0;
+      this.hp = 40; this.maxHp = 40;
+      this.facingRight = true;
+      this.attackTimer = 0;
+      this.state = 'spawning'; // 'spawning', 'alive', 'dying'
+      this.spawnProgress = 0; // 0..1
+      this.dyingTimer = 20;
+      this.type = type;
+      // внешний вид зависит от типа
+    }
+  }
+
+  // ==================== СОСТОЯНИЕ ====================
+  let canvas, ctx;
   let player = {
     x: 200, y: 100, vx: 0, vy: 0,
-    hp: 100, coins: 0,
-    facingRight: true, attacking: false, attackTimer: 0,
+    hp: 100, maxHp: 100,
+    coins: 0,
+    facingRight: true,
+    attackTimer: 0,
+    currentWeapon: 'melee',
+    weapons: {
+      melee: { ...WEAPONS.melee },
+      pistol: { ...WEAPONS.pistol, ammo: WEAPONS.pistol.ammo, spareAmmo: WEAPONS.pistol.spareAmmo },
+      shotgun: { ...WEAPONS.shotgun, ammo: WEAPONS.shotgun.ammo, spareAmmo: WEAPONS.shotgun.spareAmmo }
+    },
     keys: { left: false, right: false, up: false }
   };
 
-  // Зомби и волны
   let zombies = [];
+  let pickups = [];   // аптечки и патроны на земле
+  let particles = [];
+  let bullets = [];
+
   let wave = 0;
   let zombiesToSpawn = 0;
   let zombieIdCounter = 0;
+  let gameLoopInterval = null;
+  let currentMap = null;
 
-  // Canvas
-  const canvas = document.getElementById('canvas');
-  const ctx = canvas.getContext('2d');
-
-  // ---------- УПРАВЛЕНИЕ ----------
-  const keys = {};
-  window.addEventListener('keydown', (e) => {
-    if (e.code === 'Space') {
-      e.preventDefault();
-      playerAttack();
-    } else if (['KeyA','KeyD','KeyW','ArrowLeft','ArrowRight','ArrowUp'].includes(e.code)) {
-      e.preventDefault();
-      keys[e.code] = true;
-      updatePlayerKeys();
+  // Карты
+  const MAPS = {
+    arena: {
+      name: 'Арена',
+      bgColor: '#1a1a2e',
+      floorY: 500,
+      platforms: [
+        { x: 100, y: 380, w: 200, h: 15 },
+        { x: 600, y: 380, w: 200, h: 15 },
+        { x: 350, y: 260, w: 200, h: 15 }
+      ]
+    },
+    rooftops: {
+      name: 'Крыши',
+      bgColor: '#2a1e2e',
+      floorY: 520,
+      platforms: [
+        { x: 50, y: 400, w: 250, h: 15 },
+        { x: 550, y: 400, w: 300, h: 15 },
+        { x: 280, y: 280, w: 150, h: 15 },
+        { x: 680, y: 200, w: 120, h: 15 }
+      ]
+    },
+    dungeon: {
+      name: 'Подземелье',
+      bgColor: '#1e1e1e',
+      floorY: 530,
+      platforms: [
+        { x: 150, y: 420, w: 180, h: 15 },
+        { x: 550, y: 420, w: 180, h: 15 },
+        { x: 350, y: 310, w: 200, h: 15 }
+      ]
     }
-  });
-  window.addEventListener('keyup', (e) => {
-    if (['KeyA','KeyD','KeyW','ArrowLeft','ArrowRight','ArrowUp'].includes(e.code)) {
-      e.preventDefault();
-      keys[e.code] = false;
-      updatePlayerKeys();
-    }
-  });
+  };
 
-  function updatePlayerKeys() {
-    player.keys.left = keys['KeyA'] || keys['ArrowLeft'];
-    player.keys.right = keys['KeyD'] || keys['ArrowRight'];
-    player.keys.up = keys['KeyW'] || keys['ArrowUp'];
-  }
-
-  // ---------- ЛОГИКА ----------
+  // ==================== ФУНКЦИИ ====================
   function startGame() {
-    const nick = document.getElementById('nickname').value.trim() || 'Player';
-    localStorage.setItem('nickname', nick);
     document.getElementById('menu').classList.add('hidden');
     document.getElementById('game-screen').classList.remove('hidden');
-    resetGame();
-    setInterval(gameLoop, TICK_RATE);
+    canvas = document.getElementById('canvas');
+    ctx = canvas.getContext('2d');
+    const mapKey = document.getElementById('mapSelect').value;
+    currentMap = MAPS[mapKey];
+    // сброс игрока
+    player.x = 200; player.y = 100; player.hp = player.maxHp;
+    player.coins = 0;
+    player.attackTimer = 0;
+    player.keys = { left: false, right: false, up: false };
+    player.currentWeapon = 'melee';
+    player.weapons.melee = { ...WEAPONS.melee };
+    player.weapons.pistol = { ...WEAPONS.pistol, ammo: WEAPONS.pistol.ammo, spareAmmo: WEAPONS.pistol.spareAmmo };
+    player.weapons.shotgun = { ...WEAPONS.shotgun, ammo: WEAPONS.shotgun.ammo, spareAmmo: WEAPONS.shotgun.spareAmmo };
+    zombies = []; pickups = []; particles = []; bullets = [];
+    wave = 0; zombiesToSpawn = 0; zombieIdCounter = 0;
+    document.getElementById('gameOver').classList.add('hidden');
+    if (gameLoopInterval) clearInterval(gameLoopInterval);
+    gameLoopInterval = setInterval(gameLoop, 1000/30);
+    updateWeaponIndicator();
   }
 
-  function resetGame() {
-    player.hp = 100; player.coins = 0;
-    player.x = 200; player.y = 100; player.vx = 0; player.vy = 0;
-    player.attackTimer = 0; player.attacking = false;
-    zombies = [];
-    wave = 0;
-    zombiesToSpawn = 0;
-    zombieIdCounter = 0;
-    document.getElementById('game-over').classList.add('hidden');
+  function updateWeaponIndicator() {
+    const w = player.weapons[player.currentWeapon];
+    document.getElementById('weaponIndicator').textContent = w.name + (w.type==='ranged' ? ` [${w.ammo}/${w.maxAmmo}]` : '');
   }
 
   function spawnZombie() {
-    const side = Math.random() < 0.5 ? 50 : 750;
-    zombies.push({
-      id: zombieIdCounter++,
-      x: side, y: 100,
-      vx: 0, vy: 0,
-      hp: 40 + wave * 5,
-      facingRight: side < 400,
-      attackTimer: 0
-    });
+    const side = Math.random() < 0.5 ? 50 : 850;
+    const z = new Zombie(zombieIdCounter++, side, -50, 'normal');
+    z.spawnY = currentMap.floorY - 50; // появится на уровне земли
+    zombies.push(z);
     zombiesToSpawn--;
   }
 
   function playerAttack() {
     if (player.hp <= 0 || player.attackTimer > 0) return;
-    player.attacking = true;
-    player.attackTimer = 12;
+    const weapon = player.weapons[player.currentWeapon];
+    if (weapon.type === 'ranged' && weapon.ammo <= 0) return;
 
-    const reach = player.facingRight ? player.x + 90 : player.x - 90;
-    for (let i = zombies.length - 1; i >= 0; i--) {
-      const z = zombies[i];
-      const hit = (player.facingRight && z.x > player.x && z.x - 20 < reach && Math.abs(player.y - z.y) < 80) ||
-                  (!player.facingRight && z.x < player.x && z.x + 20 > reach && Math.abs(player.y - z.y) < 80);
-      if (hit) {
-        z.hp -= 25;
-        if (z.hp <= 0) {
-          zombies.splice(i, 1);
-          player.coins += 10;
+    player.attackTimer = weapon.cooldown;
+    if (weapon.type === 'melee') {
+      // атака мечом
+      const reach = player.facingRight ? player.x + weapon.range : player.x - weapon.range;
+      for (let i = zombies.length - 1; i >= 0; i--) {
+        const z = zombies[i];
+        if (z.state !== 'alive') continue;
+        const hit = (player.facingRight && z.x > player.x && z.x - 20 < reach && Math.abs(player.y - z.y) < 80) ||
+                    (!player.facingRight && z.x < player.x && z.x + 20 > reach && Math.abs(player.y - z.y) < 80);
+        if (hit) {
+          damageZombie(z, weapon.damage);
+          break;
         }
-        break; // один удар за атаку
+      }
+      // эффект следа
+      for (let i = 0; i < 5; i++) {
+        particles.push(new Particle(player.x + (player.facingRight?30:-30), player.y-30, '#fff', 10));
+      }
+    } else {
+      // стрельба
+      weapon.ammo--;
+      const dir = player.facingRight ? 1 : -1;
+      const bulletX = player.x + dir * 25;
+      const bulletY = player.y - 30;
+      if (weapon.name === 'Дробовик') {
+        for (let i = 0; i < weapon.pellets; i++) {
+          const angle = (Math.random() - 0.5) * 0.6;
+          const vx = dir * weapon.bulletSpeed * Math.cos(angle);
+          const vy = weapon.bulletSpeed * Math.sin(angle);
+          bullets.push(new Bullet(bulletX, bulletY, vx, vy, weapon.damage, weapon.range));
+        }
+      } else {
+        bullets.push(new Bullet(bulletX, bulletY, dir * weapon.bulletSpeed, 0, weapon.damage, weapon.range));
+      }
+    }
+  }
+
+  function damageZombie(z, dmg) {
+    z.hp -= dmg;
+    for (let i = 0; i < 8; i++) particles.push(new Particle(z.x, z.y-20, '#ff4444', 12));
+    if (z.hp <= 0) {
+      z.state = 'dying';
+      z.dyingTimer = 15;
+      // шанс выпадения предметов
+      if (Math.random() < 0.4) {
+        const type = Math.random() < 0.5 ? 'health' : 'ammo';
+        pickups.push(new Pickup(z.x, z.y-30, type));
       }
     }
   }
 
   function gameLoop() {
     if (player.hp <= 0) {
-      document.getElementById('game-over').classList.remove('hidden');
+      document.getElementById('gameOver').classList.remove('hidden');
+      clearInterval(gameLoopInterval);
       return;
     }
 
     // Управление игроком
-    if (player.keys.left) { player.vx = -SPEED; player.facingRight = false; }
-    else if (player.keys.right) { player.vx = SPEED; player.facingRight = true; }
+    const map = currentMap;
+    if (player.keys.left) { player.vx = -5; player.facingRight = false; }
+    else if (player.keys.right) { player.vx = 5; player.facingRight = true; }
     else player.vx = 0;
 
     let onGround = false;
-    if (player.y >= FLOOR) onGround = true;
-    for (const plat of platforms) {
-      if (plat.x - 20 < player.x && player.x < plat.x + plat.w + 20 && player.y <= plat.y && player.y + player.vy >= plat.y) {
+    if (player.y >= map.floorY) { onGround = true; player.y = map.floorY; player.vy = 0; }
+    for (const plat of map.platforms) {
+      if (plat.x - 20 < player.x && player.x < plat.x + plat.w + 20 &&
+          player.y <= plat.y && player.y + player.vy >= plat.y) {
         onGround = true; player.y = plat.y; player.vy = 0;
       }
     }
-    if (player.keys.up && onGround) player.vy = JUMP_FORCE;
-
-    player.vy += GRAVITY;
+    if (player.keys.up && onGround) player.vy = -12;
+    player.vy += 0.6;
     player.x += player.vx;
     player.y += player.vy;
-    if (player.y > FLOOR) { player.y = FLOOR; player.vy = 0; }
-    player.x = Math.max(30, Math.min(770, player.x));
+    player.x = Math.max(30, Math.min(870, player.x));
+    if (player.attackTimer > 0) player.attackTimer--;
 
-    // Таймер атаки
-    if (player.attackTimer > 0) {
-      player.attackTimer--;
-      if (player.attackTimer === 0) player.attacking = false;
-    }
-
-    // Зомби-логика
+    // Зомби
     if (zombies.length === 0 && zombiesToSpawn === 0) {
       wave++;
       zombiesToSpawn = 3 + wave * 2;
     }
-    if (zombiesToSpawn > 0 && Math.random() < 0.03) spawnZombie();
+    if (zombiesToSpawn > 0 && Math.random() < 0.02) spawnZombie();
 
     for (let i = zombies.length - 1; i >= 0; i--) {
       const z = zombies[i];
+      if (z.state === 'spawning') {
+        z.spawnProgress += 0.04;
+        z.y = z.spawnY - 60 + z.spawnProgress * 60; // подъем из земли
+        if (z.spawnProgress >= 1) {
+          z.y = z.spawnY;
+          z.state = 'alive';
+        }
+        continue;
+      }
+      if (z.state === 'dying') {
+        z.dyingTimer--;
+        if (z.dyingTimer <= 0) {
+          zombies.splice(i, 1);
+          for (let j=0; j<10; j++) particles.push(new Particle(z.x, z.y-20, '#ff0000', 15));
+        }
+        continue;
+      }
+      // alive
       if (z.attackTimer > 0) z.attackTimer--;
-
-      const dist = Math.abs(player.x - z.x) + Math.abs(player.y - z.y);
-      const nearX = Math.abs(player.x - z.x) < 40;
-
-      if (!nearX) {
-        if (z.x < player.x) { z.vx = ZOMBIE_SPEED; z.facingRight = true; }
-        else if (z.x > player.x) { z.vx = -ZOMBIE_SPEED; z.facingRight = false; }
+      const distToPlayer = Math.hypot(player.x - z.x, player.y - z.y);
+      const dx = player.x - z.x;
+      if (Math.abs(dx) > 40) {
+        z.vx = dx > 0 ? 1.5 : -1.5;
+        z.facingRight = dx > 0;
       } else {
         z.vx = 0;
-        if (z.attackTimer === 0 && Math.abs(player.y - z.y) < 80) {
-          player.hp -= 10;
+        if (z.attackTimer === 0 && Math.abs(player.y - z.y) < 70) {
+          player.hp -= 8;
           z.attackTimer = 40;
-          if (player.hp < 0) player.hp = 0;
+          for (let k=0; k<5; k++) particles.push(new Particle(player.x, player.y-30, '#ff6666', 10));
         }
       }
-
-      z.vy += GRAVITY;
+      // гравитация зомби
+      z.vy += 0.6;
       z.x += z.vx;
       z.y += z.vy;
-      // платформы
-      for (const plat of platforms) {
-        if (plat.x - 15 < z.x && z.x < plat.x + plat.w + 15 && z.y <= plat.y && z.y + z.vy >= plat.y) {
-          z.y = plat.y; z.vy = 0;
+      // коллизия с землей и платформами
+      let zOnGround = false;
+      if (z.y >= map.floorY) { z.y = map.floorY; z.vy = 0; zOnGround = true; }
+      for (const plat of map.platforms) {
+        if (plat.x - 15 < z.x && z.x < plat.x + plat.w + 15 &&
+            z.y <= plat.y && z.y + z.vy >= plat.y) {
+          z.y = plat.y; z.vy = 0; zOnGround = true;
         }
       }
-      if (z.y > FLOOR) { z.y = FLOOR; z.vy = 0; }
-      z.x = Math.max(30, Math.min(770, z.x));
+      if (!zOnGround) z.vy += 0.6;
+      z.x = Math.max(30, Math.min(870, z.x));
     }
 
-    // Обновление UI
-    document.getElementById('ui-panel').innerHTML = `
-      <div>
-        <div style="color:${player.hp > 30 ? 'var(--primary)' : 'red'}">❤️ ${player.hp}</div>
-        <div style="color:gold">💰 ${player.coins}</div>
-      </div>
-      <div class="wave-display">WAVE ${wave}</div>
-      <div></div>
-    `;
+    // Пули
+    for (let i = bullets.length-1; i >=0; i--) {
+      const b = bullets[i];
+      b.update();
+      if (!b.alive) { bullets.splice(i,1); continue; }
+      // проверка попадания в зомби
+      for (let j = zombies.length-1; j>=0; j--) {
+        const z = zombies[j];
+        if (z.state !== 'alive') continue;
+        if (Math.hypot(b.x - z.x, b.y - z.y) < 25) {
+          damageZombie(z, b.damage);
+          bullets.splice(i,1);
+          break;
+        }
+      }
+    }
 
+    // Подбор предметов
+    for (let i = pickups.length-1; i>=0; i--) {
+      const p = pickups[i];
+      if (Math.hypot(p.x - player.x, p.y - player.y) < 30) {
+        if (p.type === 'health') {
+          player.hp = Math.min(player.maxHp, player.hp + 10);
+          for (let k=0; k<8; k++) particles.push(new Particle(player.x, player.y-30, '#0f0', 15));
+        } else if (p.type === 'ammo') {
+          const w = player.weapons[player.currentWeapon];
+          if (w.type === 'ranged') {
+            w.spareAmmo += 6;
+            updateWeaponIndicator();
+          }
+        }
+        pickups.splice(i,1);
+      }
+    }
+
+    // Частицы
+    for (let i=particles.length-1; i>=0; i--) {
+      particles[i].update();
+      if (particles[i].life <= 0) particles.splice(i,1);
+    }
+
+    updateUI();
     draw();
   }
 
-  // ---------- ОТРИСОВКА ----------
+  function updateUI() {
+    const w = player.weapons[player.currentWeapon];
+    document.getElementById('uiPanel').innerHTML = `
+      <div>
+        <div style="color:${player.hp>30?'#bb86fc':'red'}">❤️ ${player.hp}/${player.maxHp}</div>
+        <div style="color:gold">💰 ${player.coins}</div>
+      </div>
+      <div style="color:var(--danger); font-size:20px; font-weight:bold;">WAVE ${wave}</div>
+      <div style="text-align:right;">${w.name} ${w.type==='ranged'? `(${w.ammo}/${w.maxAmmo})` : ''}</div>
+    `;
+  }
+
+  // ==================== ОТРИСОВКА ====================
   function draw() {
+    const map = currentMap;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Пол
-    ctx.fillStyle = '#1a1a24';
-    ctx.fillRect(0, FLOOR, canvas.width, canvas.height - FLOOR);
-    ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(0, FLOOR); ctx.lineTo(canvas.width, FLOOR); ctx.stroke();
-
-    // Платформы
-    for (const plat of platforms) {
-      ctx.fillStyle = '#181820';
+    // фон карты
+    ctx.fillStyle = map.bgColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // пол
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(0, map.floorY, canvas.width, 10);
+    // платформы
+    ctx.fillStyle = '#3a3a4a';
+    for (const plat of map.platforms) {
       ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
-      ctx.strokeStyle = '#444';
+      ctx.strokeStyle = '#555';
       ctx.strokeRect(plat.x, plat.y, plat.w, plat.h);
     }
 
+    // тени: рисуем до персонажей
+    const drawShadow = (x, y, radius) => {
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath();
+      ctx.ellipse(x, y, radius, radius*0.4, 0, 0, Math.PI*2);
+      ctx.fill();
+    };
+
     // Зомби
     for (const z of zombies) {
-      drawCharacter(z.x, z.y, '#ff0266', z.facingRight, z.attackTimer > 0, z.hp);
+      if (z.state === 'dying') {
+        // мерцание
+        ctx.globalAlpha = z.dyingTimer / 15;
+      }
+      if (z.state !== 'spawning') {
+        drawShadow(z.x, map.floorY+5, 15);
+      }
+      drawZombie(z);
+      ctx.globalAlpha = 1;
     }
+
     // Игрок
-    drawCharacter(player.x, player.y, 'var(--primary)', player.facingRight, player.attacking, player.hp);
+    drawShadow(player.x, map.floorY+5, 18);
+    drawPlayer();
+
+    // Предметы
+    for (const p of pickups) {
+      ctx.fillStyle = p.type === 'health' ? '#0f0' : '#ff0';
+      ctx.fillRect(p.x-10, p.y-10, 20, 20);
+    }
+
+    // Пули
+    ctx.fillStyle = '#ff0';
+    for (const b of bullets) {
+      ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI*2); ctx.fill();
+    }
+
+    // Частицы
+    for (const p of particles) {
+      const alpha = p.life / p.maxLife;
+      ctx.fillStyle = p.color.replace(')', `,${alpha})`).replace('rgb', 'rgba');
+      ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+    }
   }
 
-  function drawCharacter(x, y, color, facingRight, attacking, hp) {
-    if (hp <= 0) return;
+  function drawPlayer() {
+    const x = player.x, y = player.y;
     ctx.save();
     ctx.translate(x, y);
-    if (!facingRight) ctx.scale(-1, 1);
-    ctx.shadowBlur = 10; ctx.shadowColor = color;
-
-    // Тело
-    ctx.fillStyle = '#181820'; ctx.strokeStyle = color; ctx.lineWidth = 2;
+    if (!player.facingRight) ctx.scale(-1, 1);
+    // тело
+    ctx.fillStyle = '#336'; ctx.strokeStyle = '#bb86fc'; ctx.lineWidth = 2;
     ctx.fillRect(-12, -40, 24, 30);
     ctx.strokeRect(-12, -40, 24, 30);
-
-    // Голова
-    ctx.beginPath(); ctx.arc(0, -50, 10, 0, Math.PI * 2);
-    ctx.fillStyle = '#000'; ctx.fill(); ctx.stroke();
-    ctx.fillStyle = color; ctx.fillRect(2, -54, 8, 4);
-
-    // Ноги
+    // голова
+    ctx.beginPath(); ctx.arc(0, -50, 10, 0, Math.PI*2);
+    ctx.fillStyle = '#222'; ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#bb86fc'; ctx.fillRect(2, -54, 8, 4);
+    // ноги
     ctx.beginPath();
     ctx.moveTo(-6, -10); ctx.lineTo(-10, 0);
     ctx.moveTo(6, -10); ctx.lineTo(10, 0);
     ctx.stroke();
-
-    // Оружие / атака
-    if (attacking) {
-      ctx.beginPath(); ctx.moveTo(15, -25); ctx.lineTo(65, -25);
+    // оружие
+    if (player.attackTimer > player.weapons[player.currentWeapon].cooldown * 0.6) {
+      ctx.beginPath(); ctx.moveTo(15, -25); ctx.lineTo(60, -25);
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
     } else {
-      ctx.beginPath(); ctx.moveTo(10, -30); ctx.lineTo(25, -25);
+      ctx.beginPath(); ctx.moveTo(15, -30); ctx.lineTo(30, -25);
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
     }
     ctx.restore();
   }
+
+  function drawZombie(z) {
+    ctx.save();
+    ctx.translate(z.x, z.y);
+    if (!z.facingRight) ctx.scale(-1, 1);
+    ctx.fillStyle = '#2a1e1e'; ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 2;
+    ctx.fillRect(-12, -40, 24, 30);
+    ctx.strokeRect(-12, -40, 24, 30);
+    ctx.beginPath(); ctx.arc(0, -50, 10, 0, Math.PI*2);
+    ctx.fillStyle = '#111'; ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ff4444'; ctx.fillRect(2, -54, 8, 4);
+    ctx.beginPath();
+    ctx.moveTo(-6, -10); ctx.lineTo(-10, 0);
+    ctx.moveTo(6, -10); ctx.lineTo(10, 0);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ==================== УПРАВЛЕНИЕ ====================
+  const keys = {};
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') { e.preventDefault(); playerAttack(); }
+    else if (e.code === 'Digit1') { player.currentWeapon = 'melee'; updateWeaponIndicator(); }
+    else if (e.code === 'Digit2') { player.currentWeapon = 'pistol'; updateWeaponIndicator(); }
+    else if (e.code === 'Digit3') { player.currentWeapon = 'shotgun'; updateWeaponIndicator(); }
+    else if (['KeyA','KeyD','KeyW','ArrowLeft','ArrowRight','ArrowUp'].includes(e.code)) {
+      e.preventDefault();
+      keys[e.code] = true;
+      player.keys.left = keys['KeyA'] || keys['ArrowLeft'];
+      player.keys.right = keys['KeyD'] || keys['ArrowRight'];
+      player.keys.up = keys['KeyW'] || keys['ArrowUp'];
+    }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (['KeyA','KeyD','KeyW','ArrowLeft','ArrowRight','ArrowUp'].includes(e.code)) {
+      e.preventDefault();
+      keys[e.code] = false;
+      player.keys.left = keys['KeyA'] || keys['ArrowLeft'];
+      player.keys.right = keys['KeyD'] || keys['ArrowRight'];
+      player.keys.up = keys['KeyW'] || keys['ArrowUp'];
+    }
+  });
 
   // Автозаполнение ника
   const savedNick = localStorage.getItem('nickname');
