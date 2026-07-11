@@ -3,92 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Neon Arena</title>
+  <title>Neon Arena (fixed CORS)</title>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <style>
-    :root {
-      --bg: #0b0b10;
-      --primary: #bb86fc;
-      --danger: #ff0266;
-      --surface: #1a1a2e;
-    }
+    :root { --bg: #0b0b10; --primary: #bb86fc; --danger: #ff0266; --surface: #1a1a2e; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Segoe UI', sans-serif;
-      background: var(--bg);
-      color: #fff;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      text-align: center;
+      font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #fff;
+      display: flex; justify-content: center; align-items: center; min-height: 100vh; text-align: center;
     }
-    .container {
-      background: var(--surface);
-      padding: 30px;
-      border-radius: 20px;
-      width: 340px;
-      box-shadow: 0 0 30px rgba(187,134,252,0.3);
-      border: 1px solid #333;
-    }
-    input, button {
-      width: 100%;
-      padding: 14px;
-      margin: 10px 0;
-      border-radius: 8px;
-      border: none;
-      font-size: 16px;
-      font-weight: bold;
-      outline: none;
-    }
-    input {
-      background: #222;
-      color: #fff;
-      text-align: center;
-      text-transform: uppercase;
-      border: 2px solid #444;
-    }
+    .container { background: var(--surface); padding: 30px; border-radius: 20px; width: 340px; box-shadow: 0 0 30px rgba(187,134,252,0.3); border: 1px solid #333; }
+    input, button { width: 100%; padding: 14px; margin: 10px 0; border-radius: 8px; border: none; font-size: 16px; font-weight: bold; outline: none; }
+    input { background: #222; color: #fff; text-align: center; text-transform: uppercase; border: 2px solid #444; }
     input:focus { border-color: var(--primary); }
-    button {
-      cursor: pointer;
-      text-transform: uppercase;
-      font-weight: 900;
-      transition: opacity 0.2s;
-    }
+    button { cursor: pointer; text-transform: uppercase; font-weight: 900; transition: opacity 0.2s; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-pve { background: var(--danger); color: #000; }
     .btn-pvp { background: var(--primary); color: #000; }
     .btn-join { background: #03dac6; color: #000; }
-    button:hover { opacity: 0.8; }
-
-    .status {
-      font-size: 14px;
-      margin: 10px 0;
-      padding: 8px;
-      border-radius: 5px;
-      background: #111;
-      color: #ccc;
-    }
+    .status { font-size: 14px; margin: 10px 0; padding: 8px; border-radius: 5px; background: #111; color: #ccc; }
     .status.connected { color: #0f0; }
     .status.disconnected { color: #f00; }
-
     .hidden { display: none !important; }
     #waiting-screen h2 { margin-bottom: 15px; }
     .code { font-size: 50px; font-weight: 900; color: #fff; text-shadow: 0 0 20px var(--primary); }
-    canvas {
-      background: #111;
-      border: 2px solid #333;
-      border-radius: 10px;
-      display: block;
-      margin: 20px auto;
-      width: 100%;
-      max-width: 500px;
-      height: auto;
-    }
-    .ui-panel {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 10px;
-    }
+    canvas { background: #111; border: 2px solid #333; border-radius: 10px; display: block; margin: 20px auto; width: 100%; max-width: 500px; height: auto; }
   </style>
 </head>
 <body>
@@ -97,11 +36,11 @@
   <h1 style="color:var(--primary); margin-bottom:20px;">NEON ARENA</h1>
   <p style="font-size:14px; color:#888; margin-bottom:10px;">A/D — движение | W — прыжок | ПРОБЕЛ — удар</p>
   <input id="nickname" placeholder="ТВОЙ НИКНЕЙМ" maxlength="15" />
-  <button class="btn-pve" onclick="createGame('PvE')">Создать PvE (Зомби)</button>
-  <button class="btn-pvp" onclick="createGame('PvP')">Создать PvP (Дуэль)</button>
+  <button id="btnPvE" class="btn-pve" disabled>Создать PvE (Зомби)</button>
+  <button id="btnPvP" class="btn-pvp" disabled>Создать PvP (Дуэль)</button>
   <hr style="border-color:#333; margin:15px 0;">
   <input id="roomCode" placeholder="КОД КОМНАТЫ" maxlength="4" />
-  <button class="btn-join" onclick="joinGame()">Присоединиться</button>
+  <button id="btnJoin" class="btn-join" disabled>Присоединиться</button>
   <div id="connectionStatus" class="status disconnected">● Отключено</div>
 </div>
 
@@ -112,69 +51,74 @@
 </div>
 
 <div id="game-screen" class="hidden">
-  <div class="ui-panel">
-    <div id="playerStats" style="text-align:left; font-size:14px;"></div>
-    <div id="waveInfo" style="color:var(--danger); font-size:20px; font-weight:bold;"></div>
-  </div>
   <canvas id="canvas" width="500" height="300"></canvas>
   <button onclick="location.reload()" style="width:auto; margin-top:10px;">В МЕНЮ</button>
 </div>
 
 <script>
-  // ===================== НАСТРОЙКИ =====================
   const SERVER_URL = "https://web-production-91b86.up.railway.app";
-  // Временно только polling – самый надёжный вариант
-  const socket = io(SERVER_URL, {
-    transports: ['polling']
-  });
-
-  // ===================== ГЛОБАЛЬНОЕ СОСТОЯНИЕ =====================
+  let socket = null;
   let myId = null;
   let gameState = { players: {}, zombies: {}, wave: 0 };
 
-  // ===================== DOM ЭЛЕМЕНТЫ =====================
-  const menu = document.getElementById('menu');
-  const waitingScreen = document.getElementById('waiting-screen');
-  const gameScreen = document.getElementById('game-screen');
-  const canvas = document.getElementById('canvas');
-  const ctx = canvas.getContext('2d');
+  // Отключаем кнопки до подключения
+  const btnPvE = document.getElementById('btnPvE');
+  const btnPvP = document.getElementById('btnPvP');
+  const btnJoin = document.getElementById('btnJoin');
   const statusDiv = document.getElementById('connectionStatus');
-  const playerStatsDiv = document.getElementById('playerStats');
-  const waveInfoDiv = document.getElementById('waveInfo');
 
-  // ===================== ПОДКЛЮЧЕНИЕ =====================
-  socket.on('connect', () => {
-    statusDiv.textContent = '● Подключено (polling)';
-    statusDiv.className = 'status connected';
-    console.log('✅ Connected:', socket.id);
-  });
+  function connect() {
+    if (socket && socket.connected) return; // уже подключены
+    if (socket) socket.disconnect(); // разрываем старые попытки
+    socket = io(SERVER_URL, {
+      transports: ['polling'],
+      forceNew: true,
+      reconnection: false
+    });
 
-  socket.on('disconnect', () => {
-    statusDiv.textContent = '● Отключено';
-    statusDiv.className = 'status disconnected';
-    console.warn('⚠️ Disconnected');
-  });
+    socket.on('connect', () => {
+      statusDiv.textContent = '● Подключено';
+      statusDiv.className = 'status connected';
+      btnPvE.disabled = false;
+      btnPvP.disabled = false;
+      btnJoin.disabled = false;
+      console.log('✅ Connected:', socket.id);
+    });
 
-  socket.on('connect_error', (err) => {
-    statusDiv.textContent = '● Ошибка: ' + err.message;
-    statusDiv.className = 'status disconnected';
-    console.error('❌ Connection error:', err.message);
-  });
+    socket.on('disconnect', () => {
+      statusDiv.textContent = '● Отключено';
+      statusDiv.className = 'status disconnected';
+      btnPvE.disabled = true;
+      btnPvP.disabled = true;
+      btnJoin.disabled = true;
+    });
 
-  // ===================== ФУНКЦИИ ИНТЕРФЕЙСА =====================
-  window.createGame = function(mode) {
-    const nick = getNickname();
-    console.log(`Создаём комнату: ${mode}, ник: ${nick}`);
-    socket.emit('create_room', { username: nick, mode: mode });
-  };
+    socket.on('connect_error', (err) => {
+      statusDiv.textContent = '● Ошибка: ' + err.message;
+      statusDiv.className = 'status disconnected';
+    });
 
-  window.joinGame = function() {
-    const code = document.getElementById('roomCode').value.trim().toUpperCase();
-    if (code.length !== 4) return alert('Введите 4-символьный код');
-    const nick = getNickname();
-    socket.emit('join_room', { code: code, username: nick });
-  };
+    socket.on('room_created', (data) => {
+      document.getElementById('menu').classList.add('hidden');
+      document.getElementById('waiting-screen').classList.remove('hidden');
+      document.getElementById('displayCode').textContent = data.code;
+    });
 
+    socket.on('game_start', (data) => {
+      myId = data.my_id;
+      document.getElementById('waiting-screen').classList.add('hidden');
+      document.getElementById('game-screen').classList.remove('hidden');
+      requestAnimationFrame(gameLoop);
+    });
+
+    socket.on('game_state', (state) => {
+      gameState = state;
+    });
+
+    socket.on('error', (data) => alert(data.msg));
+  }
+
+  // Функции кнопок
   function getNickname() {
     let n = document.getElementById('nickname').value.trim();
     if (!n) n = 'Player_' + Math.floor(Math.random()*1000);
@@ -182,37 +126,31 @@
     return n;
   }
 
-  // ===================== ОБРАБОТЧИКИ СОБЫТИЙ =====================
-  socket.on('room_created', (data) => {
-    console.log('Комната создана:', data.code);
-    menu.classList.add('hidden');
-    waitingScreen.classList.remove('hidden');
-    document.getElementById('displayCode').textContent = data.code;
-  });
+  window.createRoom = function(mode) {
+    if (!socket || !socket.connected) return alert('Нет соединения с сервером');
+    const nick = getNickname();
+    socket.emit('create_room', { username: nick, mode: mode });
+  };
 
-  socket.on('error', (data) => {
-    alert(data.msg);
-  });
+  window.joinRoom = function() {
+    if (!socket || !socket.connected) return alert('Нет соединения с сервером');
+    const code = document.getElementById('roomCode').value.trim().toUpperCase();
+    if (code.length !== 4) return alert('Введите 4 символа');
+    const nick = getNickname();
+    socket.emit('join_room', { code: code, username: nick });
+  };
 
-  socket.on('game_start', (data) => {
-    console.log('Игра началась!', data);
-    myId = data.my_id;
-    waitingScreen.classList.add('hidden');
-    gameScreen.classList.remove('hidden');
-    requestAnimationFrame(gameLoop);
-  });
+  // Привязка к кнопкам
+  btnPvE.addEventListener('click', () => createRoom('PvE'));
+  btnPvP.addEventListener('click', () => createRoom('PvP'));
+  btnJoin.addEventListener('click', joinRoom);
 
-  socket.on('game_state', (state) => {
-    gameState = state;
-    updateUI();
-  });
-
-  // ===================== УПРАВЛЕНИЕ =====================
+  // Управление
   const keys = {};
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Space') {
       e.preventDefault();
-      socket.emit('attack');
+      if (socket && socket.connected) socket.emit('attack');
     } else if (['KeyA','KeyD','KeyW','ArrowLeft','ArrowRight','ArrowUp'].includes(e.code)) {
       e.preventDefault();
       if (!keys[e.code]) {
@@ -230,6 +168,7 @@
   });
 
   function sendInput(code, pressed) {
+    if (!socket || !socket.connected) return;
     let action = null;
     if (code === 'KeyA' || code === 'ArrowLeft') action = 'left';
     else if (code === 'KeyD' || code === 'ArrowRight') action = 'right';
@@ -237,86 +176,44 @@
     if (action) socket.emit('player_input', { action, state: pressed });
   }
 
-  // ===================== ОТРИСОВКА =====================
-  function updateUI() {
-    // Статистика игроков
-    let html = '';
-    for (const [sid, p] of Object.entries(gameState.players)) {
-      html += `<div style="color:${p.color}">${p.username} ${sid===myId?'(ТЫ)':''} ❤️${p.hp} ${p.coins ? '💰'+p.coins : ''}</div>`;
-    }
-    playerStatsDiv.innerHTML = html;
-
-    // Волна (PvE)
-    if (gameState.wave > 0) {
-      waveInfoDiv.textContent = `WAVE ${gameState.wave}`;
-    } else {
-      waveInfoDiv.textContent = '';
-    }
-  }
-
+  // Отрисовка (без изменений)
   function draw() {
+    const canvas = document.getElementById('canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Пол
     ctx.fillStyle = '#222';
     ctx.fillRect(0, 250, canvas.width, 50);
-    ctx.strokeStyle = '#555';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, 250);
-    ctx.lineTo(canvas.width, 250);
-    ctx.stroke();
+    ctx.strokeStyle = '#555'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, 250); ctx.lineTo(canvas.width, 250); ctx.stroke();
 
-    // Зомби
     for (const z of Object.values(gameState.zombies)) {
-      drawCharacter(z.x, z.y, '#ff0266', z.isFacingRight, z.isAttacking, z.hp);
+      drawCharacter(ctx, z.x, z.y, '#ff0266', z.isFacingRight, z.isAttacking, z.hp);
     }
-
-    // Игроки
     for (const p of Object.values(gameState.players)) {
-      drawCharacter(p.x, p.y, p.color, p.isFacingRight, p.isAttacking, p.hp);
+      drawCharacter(ctx, p.x, p.y, p.color, p.isFacingRight, p.isAttacking, p.hp);
     }
   }
 
-  function drawCharacter(x, y, color, facingRight, attacking, hp) {
+  function drawCharacter(ctx, x, y, color, facingRight, attacking, hp) {
     if (hp <= 0) return;
     ctx.save();
     ctx.translate(x, y);
     if (!facingRight) ctx.scale(-1, 1);
-
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = color;
-    ctx.fillStyle = '#181820';
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    // туловище
+    ctx.shadowBlur = 10; ctx.shadowColor = color;
+    ctx.fillStyle = '#181820'; ctx.strokeStyle = color; ctx.lineWidth = 2;
     ctx.fillRect(-10, -35, 20, 25);
     ctx.strokeRect(-10, -35, 20, 25);
-    // голова
+    ctx.beginPath(); ctx.arc(0, -45, 10, 0, Math.PI*2);
+    ctx.fillStyle = '#000'; ctx.fill(); ctx.stroke();
+    ctx.fillStyle = color; ctx.fillRect(3, -48, 7, 4);
     ctx.beginPath();
-    ctx.arc(0, -45, 10, 0, Math.PI*2);
-    ctx.fillStyle = '#000';
-    ctx.fill();
+    ctx.moveTo(-5, -10); ctx.lineTo(-8, 0);
+    ctx.moveTo(5, -10); ctx.lineTo(8, 0);
     ctx.stroke();
-    // визор
-    ctx.fillStyle = color;
-    ctx.fillRect(3, -48, 7, 4);
-    // ноги
-    ctx.beginPath();
-    ctx.moveTo(-5, -10);
-    ctx.lineTo(-8, 0);
-    ctx.moveTo(5, -10);
-    ctx.lineTo(8, 0);
-    ctx.stroke();
-
-    // атака
     if (attacking) {
-      ctx.beginPath();
-      ctx.moveTo(15, -25);
-      ctx.lineTo(55, -25);
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 3;
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(15, -25); ctx.lineTo(55, -25);
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
     }
     ctx.restore();
   }
@@ -326,9 +223,10 @@
     requestAnimationFrame(gameLoop);
   }
 
-  // Подгрузка ника
+  // Инициализация
   const saved = localStorage.getItem('nickname');
   if (saved) document.getElementById('nickname').value = saved;
+  connect();
 </script>
 </body>
 </html>
