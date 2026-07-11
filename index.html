@@ -79,12 +79,10 @@
             transports: ['websocket', 'polling']
         });
 
-        // Показываем статус подключения
         socket.on('connect', () => console.log('✅ Connected to server:', socket.id));
         socket.on('connect_error', (e) => console.error('❌ Connection error:', e.message));
         socket.on('disconnect', () => console.warn('⚠️ Disconnected'));
 
-        // Element refs
         const menu = document.getElementById('menu');
         const waitingScreen = document.getElementById('waiting-screen');
         const gameContainer = document.getElementById('game-container');
@@ -93,13 +91,11 @@
         const uiPanel = document.getElementById('ui-panel');
         const waveDisplay = document.getElementById('wave-display');
         
-        // State
         let roomID = null;
         let gameMode = null;
         let myId = null;
         let gameState = { players: {}, zombies: {}, wave: 0 };
         
-        // Map constants
         const FLOOR = 550;
         const platforms = [
             { x: 150, y: 400, w: 200, h: 20 },
@@ -107,7 +103,6 @@
             { x: 400, y: 250, w: 200, h: 20 }
         ];
 
-        // Load nickname
         const savedNick = localStorage.getItem('nickname');
         if (savedNick) document.getElementById('nicknameInput').value = savedNick;
 
@@ -118,7 +113,6 @@
             return n;
         }
 
-        // --- Network ---
         function createRoom(mode) { 
             socket.emit('create_room', { username: getNick(), mode: mode }); 
         }
@@ -155,7 +149,6 @@
             updateUI();
         });
 
-        // --- Inputs ---
         let keys = { 'KeyA': false, 'KeyD': false, 'KeyW': false, 'ArrowLeft': false, 'ArrowRight': false, 'ArrowUp': false };
         
         window.addEventListener('keydown', (e) => { 
@@ -180,7 +173,6 @@
             if(code === 'KeyW' || code === 'ArrowUp') socket.emit('player_input', {action: 'up', state: state});
         }
 
-        // --- Rendering ---
         function updateUI() {
             let uiHTML = '';
             let amIDead = false;
@@ -230,28 +222,23 @@
             
             ctx.shadowBlur = 15; ctx.shadowColor = color;
             
-            // Body
             ctx.fillStyle = '#181820'; ctx.strokeStyle = color; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.rect(-15, -60, 30, 40); ctx.fill(); ctx.stroke();
             
-            // Head
             ctx.beginPath(); ctx.arc(0, -75, 16, 0, Math.PI * 2);
             ctx.fillStyle = isZombie ? '#220000' : '#111'; ctx.fill(); ctx.stroke();
-            // Visor
             ctx.fillStyle = color; ctx.fillRect(2, -80, 14, 6);
             
-            // Legs
             ctx.lineWidth = 7; ctx.lineCap = 'round';
             ctx.beginPath();
             ctx.moveTo(-7, -20); ctx.lineTo(-12, 0);
             ctx.moveTo(7, -20); ctx.lineTo(12, 0);
             ctx.stroke();
 
-            // Arm & Weapon
             if (isAttacking) {
                 ctx.save();
                 ctx.translate(10, -40);
-                ctx.rotate(0.5 * Math.PI); // Attack frame
+                ctx.rotate(0.5 * Math.PI);
                 ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(15, 0); ctx.stroke();
                 ctx.shadowBlur = 30; ctx.strokeStyle = isZombie ? '#ff0000' : '#fff'; ctx.lineWidth = 8;
                 ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(75, 0); ctx.stroke();
@@ -271,12 +258,10 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             drawMap();
             
-            // Draw zombies
             for(const z of Object.values(gameState.zombies)) {
                 drawCharacter(z.x, z.y, '#ff0266', z.isFacingRight, z.isAttacking, true, z.hp);
             }
             
-            // Draw players
             for(const [sid, p] of Object.entries(gameState.players)) {
                 drawCharacter(p.x, p.y, p.color, p.isFacingRight, p.isAttacking, false, p.hp);
             }
@@ -285,4 +270,4 @@
         }
     </script>
 </body>
-</html> 
+</html>
