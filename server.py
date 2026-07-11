@@ -6,7 +6,13 @@ from flask_socketio import SocketIO, emit, join_room
 
 
 app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    async_mode='threading',
+    logger=False,
+    engineio_logger=False
+)
 
 # --- Firebase Setup ---
 USE_FIREBASE = False
@@ -251,7 +257,9 @@ def on_create(data):
     emit('room_created', {'code': code})
     if mode == "PvE":
         room.game_active = True
-        emit('game_start', {'room': code, 'mode': mode, 'my_id': sid}, room=code)
+        # Небольшая задержка чтобы клиент успел обработать room_created
+        import time; time.sleep(0.3)
+        socketio.emit('game_start', {'room': code, 'mode': mode, 'my_id': sid}, room=code)
 
 @socketio.on('join_room')
 def on_join(data):
@@ -284,7 +292,7 @@ def on_join(data):
         room.game_active = True
         emit('game_start', {'room': code, 'mode': room.mode, 'my_id': sid}, room=code)
     elif room.mode == "PvE":
-        emit('game_start', {'room': code, 'mode': room.mode, 'my_id': sid}, room=sid)
+        emit('game_start', {'room': code, 'mode': room.mode, 'my_id': sid})
 
 @socketio.on('player_input')
 def handle_input(data):
