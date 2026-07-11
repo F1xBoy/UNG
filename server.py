@@ -1,6 +1,3 @@
-import eventlet
-eventlet.monkey_patch()
-
 import os
 import random
 import string
@@ -108,7 +105,7 @@ def generate_code():
 # --- Main Game Loop (Server-Authoritative) ---
 def game_loop():
     while True:
-        eventlet.sleep(TICK_RATE)
+        socketio.sleep(TICK_RATE)
         for code, room in list(active_rooms.items()):
             if not room.game_active: continue
             
