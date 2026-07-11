@@ -3,35 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neon Cyborg Duels</title>
+    <title>Neon Cyborg Duels: Ultimate</title>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <style>
         :root { --bg: #050507; --primary: #bb86fc; --secondary: #03dac6; --danger: #ff0266; --surface: #121216; }
         body { font-family: 'Inter', sans-serif; background: var(--bg); color: #fff; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; flex-direction: column; }
         
-        /* Менюшка */
-        #menu { background: var(--surface); padding: 40px; border-radius: 20px; text-align: center; border: 1px solid #23232a; box-shadow: 0 0 50px rgba(0,0,0,0.9); z-index: 10; width: 320px; }
-        h1 { margin-top: 0; font-size: 34px; letter-spacing: 2px; text-transform: uppercase; }
-        .text-glow-primary { color: var(--primary); text-shadow: 0 0 15px var(--primary); }
-        .text-glow-secondary { color: var(--secondary); text-shadow: 0 0 15px var(--secondary); }
+        /* Анимация появления меню */
+        @keyframes slideIn { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        #menu { background: var(--surface); padding: 40px; border-radius: 20px; text-align: center; border: 1px solid #23232a; box-shadow: 0 0 50px rgba(0,0,0,0.9); z-index: 10; width: 320px; animation: slideIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+        h1 { margin-top: 0; font-size: 34px; letter-spacing: 2px; text-transform: uppercase; animation: pulseGlow 2s infinite alternate; }
+        @keyframes pulseGlow { from { text-shadow: 0 0 10px var(--primary); } to { text-shadow: 0 0 25px var(--primary), 0 0 5px #fff; } }
+        
+        .text-glow-primary { color: var(--primary); }
         input { padding: 12px; font-size: 20px; border-radius: 8px; border: 2px solid #2c2c35; background: #1a1a24; color: #fff; text-transform: uppercase; text-align: center; margin-bottom: 20px; width: 100%; box-sizing: border-box; outline: none; transition: 0.3s; font-weight: bold; letter-spacing: 3px; }
         input:focus { border-color: var(--secondary); box-shadow: 0 0 15px rgba(3, 218, 198, 0.3); }
-        button { padding: 15px; font-size: 16px; font-weight: 900; cursor: pointer; border: none; border-radius: 8px; margin-bottom: 15px; width: 100%; transition: 0.2s; text-transform: uppercase; letter-spacing: 1px; }
+        button { padding: 15px; font-size: 16px; font-weight: 900; cursor: pointer; border: none; border-radius: 8px; margin-bottom: 15px; width: 100%; transition: 0.2s; text-transform: uppercase; letter-spacing: 1px; position: relative; overflow: hidden; }
         .btn-create { background: var(--primary); color: #000; box-shadow: 0 0 20px rgba(187,134,252,0.4); }
         .btn-join { background: var(--secondary); color: #000; box-shadow: 0 0 20px rgba(3, 218, 198, 0.4); }
         button:hover { transform: translateY(-3px); filter: brightness(1.2); }
         
-        /* Экран ожидания (НОВОЕ) */
-        #waiting-screen { display: none; background: var(--surface); padding: 50px; border-radius: 20px; text-align: center; border: 1px solid var(--primary); box-shadow: 0 0 60px rgba(187,134,252,0.2); z-index: 10; }
+        #waiting-screen { display: none; background: var(--surface); padding: 50px; border-radius: 20px; text-align: center; border: 1px solid var(--primary); box-shadow: 0 0 60px rgba(187,134,252,0.2); z-index: 10; animation: slideIn 0.3s; }
         .code-display { font-size: 60px; font-weight: 900; color: #fff; letter-spacing: 10px; margin: 20px 0; text-shadow: 0 0 30px var(--primary); background: #0a0a0c; padding: 20px; border-radius: 15px; border: 2px dashed #333; }
         
-        /* Игра */
-        #game-container { display: none; position: relative; }
+        #game-container { display: none; position: relative; animation: slideIn 0.5s; }
         canvas { background: linear-gradient(180deg, #0a0a0c 0%, #1a1a24 100%); border: 3px solid #2c2c35; border-radius: 12px; box-shadow: 0 0 60px rgba(0,0,0,0.8); }
         
-        .ui-panel { position: absolute; top: 25px; width: 100%; display: flex; justify-content: space-between; padding: 0 30px; box-sizing: border-box; }
+        .ui-panel { position: absolute; top: 25px; width: 100%; display: flex; justify-content: space-between; padding: 0 30px; box-sizing: border-box; z-index: 5; }
         .hp-bar-container { width: 320px; height: 30px; background: #111; border: 3px solid #333; border-radius: 15px; overflow: hidden; position: relative; }
-        .hp-bar { height: 100%; width: 100%; transition: width 0.15s cubic-bezier(0.4, 0, 0.2, 1); }
+        .hp-bar { height: 100%; width: 100%; transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
         #my-hp { background: linear-gradient(90deg, #8800ff, var(--primary)); box-shadow: 0 0 15px var(--primary); }
         #enemy-hp { background: linear-gradient(90deg, #00b3a3, var(--secondary)); box-shadow: 0 0 15px var(--secondary); }
         
@@ -42,7 +43,7 @@
 
     <div id="menu">
         <h1 class="text-glow-primary">NEON ARENA</h1>
-        <p style="color: #888; font-size: 14px; margin-bottom: 30px;">A/D или Стрелочки — Движение<br>W или Вверх — Прыжок<br><strong style="color: #fff;">ПРОБЕЛ — УДАР МЕЧОМ</strong></p>
+        <p style="color: #888; font-size: 14px; margin-bottom: 30px;">A/D — Движение<br>W — Прыжок<br><strong style="color: #fff;">ПРОБЕЛ — УДАР МЕЧОМ</strong></p>
         <button class="btn-create" onclick="createRoom()">Создать арену</button>
         <hr style="border: 0; border-top: 1px solid #2c2c35; margin: 25px 0;">
         <input type="text" id="roomInput" placeholder="ВВЕДИ КОД" maxlength="4">
@@ -52,7 +53,7 @@
     <div id="waiting-screen">
         <h2 style="color: #888; margin: 0; text-transform: uppercase;">Код твоей арены</h2>
         <div class="code-display" id="display-code">----</div>
-        <p style="color: var(--primary); font-size: 18px; font-weight: bold; margin: 0;">Кидай код другу. Ждем подключения...</p>
+        <p style="color: var(--primary); font-size: 18px; font-weight: bold; margin: 0;">Кидай код другу. Ждем коннекта...</p>
     </div>
 
     <div id="game-container">
@@ -61,10 +62,10 @@
             <div style="font-weight: 900; font-size: 28px; color: #555; text-shadow: 0 0 10px #000;">VS</div>
             <div class="hp-bar-container"><div id="enemy-hp" class="hp-bar"></div></div>
         </div>
-        <canvas id="gameCanvas" width="1000" height="550"></canvas>
+        <canvas id="gameCanvas" width="1000" height="600"></canvas>
         <div id="win-screen">
             <span id="win-text"></span>
-            <button onclick="location.reload()" style="margin-top: 30px; width: 250px; background: #fff; color: #000; box-shadow: 0 0 20px #fff;">ВЕРНУТЬСЯ В МЕНЮ</button>
+            <button onclick="location.reload()" style="margin-top: 30px; width: 250px; background: #fff; color: #000;">В МЕНЮ</button>
         </div>
     </div>
 
@@ -80,51 +81,53 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
-        let roomID = null;
-        let gameActive = false;
+        let roomID = null, gameActive = false;
 
-        // Настройки физики
-        const GRAVITY = 0.8;
-        const FLOOR = 480;
-        const JUMP_FORCE = -16;
-        const SPEED = 7;
-        const ATTACK_RANGE = 90;
-        const ATTACK_DAMAGE = 12;
+        // Физика и карта
+        const GRAVITY = 0.7;
+        const FLOOR = 550;
+        const JUMP_FORCE = -15;
+        const SPEED = 7.5;
+        
+        // Платформы (Карта)
+        const platforms = [
+            { x: 150, y: 400, w: 200, h: 20 },
+            { x: 650, y: 400, w: 200, h: 20 },
+            { x: 400, y: 250, w: 200, h: 20 }
+        ];
+
+        // Частицы (Эффекты крови/искр)
+        let particles = [];
 
         class Player {
             constructor(x, color, isFacingRight) {
-                this.x = x;
-                this.y = 100;
-                this.vx = 0;
-                this.vy = 0;
+                this.x = x; this.y = 100;
+                this.vx = 0; this.vy = 0;
                 this.hp = 100;
                 this.color = color;
                 this.isFacingRight = isFacingRight;
                 this.isAttacking = false;
-                this.attackCooldown = 0;
+                this.attackTimer = 0; // Для плавной анимации
+                this.breathe = 0; // Для дыхания
             }
         }
 
         let me = new Player(250, 'var(--primary)', true);
         let enemy = new Player(750, 'var(--secondary)', false);
-
         let keys = {};
+
         window.addEventListener('keydown', (e) => { keys[e.code] = true; });
         window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
         // --- Сеть ---
-        function createRoom() {
-            socket.emit('create_room', {});
-        }
-
+        function createRoom() { socket.emit('create_room', {}); }
         function joinRoom() {
             const code = document.getElementById('roomInput').value;
-            if(code.length !== 4) return alert('Эй, код должен быть из 4 букв/цифр!');
+            if(code.length !== 4) return alert('Код — 4 символа!');
             socket.emit('join_room', { code: code });
         }
 
         socket.on('room_created', (data) => {
-            // Прячем меню, показываем красивое окно с кодом
             menu.style.display = 'none';
             waitingScreen.style.display = 'block';
             document.getElementById('display-code').innerText = data.code;
@@ -134,76 +137,78 @@
 
         socket.on('game_start', (data) => {
             roomID = data.room;
-            // Прячем всё лишнее, врубаем игру
-            menu.style.display = 'none';
             waitingScreen.style.display = 'none';
+            menu.style.display = 'none';
             gameContainer.style.display = 'block';
             
             if (data.role === 'client') {
                 me.x = 750; me.color = 'var(--secondary)'; me.isFacingRight = false;
                 enemy.x = 250; enemy.color = 'var(--primary)'; enemy.isFacingRight = true;
                 
-                // Свапаем цвета ХП баров, чтобы твой всегда был слева правильного цвета
                 document.getElementById('my-hp').style.background = 'linear-gradient(90deg, #00b3a3, var(--secondary))';
                 document.getElementById('my-hp').style.boxShadow = '0 0 15px var(--secondary)';
                 document.getElementById('enemy-hp').style.background = 'linear-gradient(90deg, #8800ff, var(--primary))';
                 document.getElementById('enemy-hp').style.boxShadow = '0 0 15px var(--primary)';
             }
             gameActive = true;
-            gameLoop();
+            requestAnimationFrame(gameLoop);
             setInterval(sendData, 1000 / 40);
         });
 
         socket.on('enemy_data', (data) => {
-            enemy.x = data.x;
-            enemy.y = data.y;
+            enemy.x = data.x; enemy.y = data.y;
             enemy.isFacingRight = data.isFacingRight;
             enemy.isAttacking = data.isAttacking;
             
             if (data.enemyHp < me.hp) {
+                spawnParticles(me.x, me.y - 40, me.color); // Искры при получении урона
                 me.hp = data.enemyHp;
-                updateHPUI();
-                checkDeath();
+                updateHPUI(); checkDeath();
             }
         });
 
         socket.on('opponent_left', () => {
             if(!gameActive) return;
-            alert("Враг выдернул шнур интернета! Ты победил технически.");
-            location.reload();
+            alert("Враг выдернул шнур интернета!"); location.reload();
         });
 
         function sendData() {
             if (!gameActive) return;
             socket.emit('sync_data', { 
-                room: roomID, 
-                x: me.x, y: me.y, 
+                room: roomID, x: me.x, y: me.y, 
                 isFacingRight: me.isFacingRight, 
-                isAttacking: me.isAttacking,
+                isAttacking: me.attackTimer > 0, 
                 enemyHp: enemy.hp 
             });
         }
 
         // --- Механики ---
-        function attack() {
-            if (me.attackCooldown > 0) return;
-            me.isAttacking = true;
-            me.attackCooldown = 30; // Кулдаун удара
+        function spawnParticles(x, y, color) {
+            for(let i = 0; i < 20; i++) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 15,
+                    vy: (Math.random() - 1) * 15,
+                    life: 1.0, color: color
+                });
+            }
+        }
 
-            let reach = me.isFacingRight ? me.x + ATTACK_RANGE : me.x - ATTACK_RANGE;
+        function attack() {
+            if (me.attackTimer > 0) return;
+            me.attackTimer = 20; // Длительность анимации и кулдауна
+
+            let reach = me.isFacingRight ? me.x + 95 : me.x - 95;
             let hit = false;
 
-            // Проверка попадания мечом по Хитбоксу врага (ширина хитбокса около 40px)
             if (me.isFacingRight && enemy.x > me.x && enemy.x - 20 < reach && Math.abs(me.y - enemy.y) < 80) hit = true;
             if (!me.isFacingRight && enemy.x < me.x && enemy.x + 20 > reach && Math.abs(me.y - enemy.y) < 80) hit = true;
 
             if (hit) {
-                enemy.hp -= ATTACK_DAMAGE;
-                updateHPUI();
-                checkDeath();
+                enemy.hp -= 15;
+                spawnParticles(enemy.x, enemy.y - 40, enemy.color);
+                updateHPUI(); checkDeath();
             }
-
-            setTimeout(() => { me.isAttacking = false; }, 200); // Длительность взмаха
         }
 
         function updateHPUI() {
@@ -218,11 +223,11 @@
                 const winText = document.getElementById('win-text');
                 winScreen.style.display = 'flex';
                 if (me.hp > 0) {
-                    winText.innerText = "АБСОЛЮТНАЯ ПОБЕДА";
-                    winText.className = 'text-glow-secondary';
+                    winText.innerText = "FATAL ERROR ВРАГА";
+                    winText.style.color = 'var(--secondary)';
+                    winText.style.textShadow = '0 0 20px var(--secondary)';
                 } else {
-                    winText.innerText = "ТЕБЯ РАЗМАЗАЛИ ПО АРЕНЕ";
-                    winText.className = 'text-glow-primary';
+                    winText.innerText = "СИСТЕМА УНИЧТОЖЕНА";
                     winText.style.color = 'var(--danger)';
                     winText.style.textShadow = '0 0 20px var(--danger)';
                 }
@@ -230,7 +235,7 @@
         }
 
         function updatePhysics() {
-            if (me.attackCooldown > 0) me.attackCooldown--;
+            if (me.attackTimer > 0) me.attackTimer--;
 
             // Движение
             if (keys['KeyA'] || keys['ArrowLeft']) { me.vx = -SPEED; me.isFacingRight = false; }
@@ -238,124 +243,140 @@
             else { me.vx = 0; }
 
             // Прыжок
-            if ((keys['KeyW'] || keys['ArrowUp']) && me.y >= FLOOR) { me.vy = JUMP_FORCE; }
+            let onGround = false;
+            if (me.y >= FLOOR) onGround = true;
+            for (let p of platforms) {
+                if (me.y === p.y && me.x > p.x - 15 && me.x < p.x + p.w + 15) onGround = true;
+            }
 
-            // Удар
+            if ((keys['KeyW'] || keys['ArrowUp']) && onGround) { me.vy = JUMP_FORCE; }
+
             if (keys['Space']) { attack(); keys['Space'] = false; }
 
             me.vy += GRAVITY;
             me.x += me.vx;
             me.y += me.vy;
 
-            // Границы арены
+            // Коллизия с платформами (Только сверху вниз)
+            if (me.vy > 0) {
+                for (let p of platforms) {
+                    if (me.x > p.x - 15 && me.x < p.x + p.w + 15 && 
+                        me.y - me.vy <= p.y && me.y >= p.y) {
+                        me.y = p.y; me.vy = 0;
+                    }
+                }
+            }
+
+            // Границы экрана и пол
             if (me.x < 30) me.x = 30;
             if (me.x > canvas.width - 30) me.x = canvas.width - 30;
-
             if (me.y > FLOOR) { me.y = FLOOR; me.vy = 0; }
+
+            // Дыхание
+            me.breathe = Math.sin(Date.now() / 200) * 3;
+            enemy.breathe = Math.sin(Date.now() / 200 + Math.PI) * 3;
+
+            // Обновление частиц
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.vy += GRAVITY * 0.5;
+                p.x += p.vx; p.y += p.vy;
+                p.life -= 0.03;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
         }
 
-        // --- НОВАЯ ГРАФИКА: КИБОРГИ С МЕЧАМИ ---
-        function drawCyborg(p) {
-            ctx.save();
-            // Перемещаем центр координат в ноги игрока
-            ctx.translate(p.x, p.y);
+        function drawMap() {
+            // Пол
+            ctx.fillStyle = '#111116';
+            ctx.fillRect(0, FLOOR, canvas.width, canvas.height - FLOOR);
+            ctx.shadowBlur = 20; ctx.shadowColor = 'var(--primary)';
+            ctx.strokeStyle = '#333'; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(0, FLOOR); ctx.lineTo(canvas.width, FLOOR); ctx.stroke();
             
-            // Если смотрит влево — отзеркаливаем всё по горизонтали
-            if (!p.isFacingRight) { ctx.scale(-1, 1); }
+            // Платформы
+            ctx.shadowColor = 'var(--secondary)';
+            platforms.forEach(p => {
+                ctx.fillStyle = '#181820';
+                ctx.fillRect(p.x, p.y, p.w, p.h);
+                ctx.strokeStyle = '#2c2c35'; ctx.lineWidth = 2;
+                ctx.strokeRect(p.x, p.y, p.w, p.h);
+                // Неоновая кромка сверху платформы
+                ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + p.w, p.y);
+                ctx.strokeStyle = 'var(--secondary)'; ctx.stroke();
+            });
+            ctx.shadowBlur = 0;
+        }
 
-            // Общее свечение персонажа
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = p.color;
+        function drawCyborg(p, isMe) {
+            ctx.save();
+            // Центр в ногах + анимация дыхания (изменение Y)
+            let breatheOffset = (p.vx === 0 && p.vy === 0) ? p.breathe : 0;
+            ctx.translate(p.x, p.y + breatheOffset);
+            if (!p.isFacingRight) ctx.scale(-1, 1);
 
-            // 1. Броня (Тело)
-            ctx.fillStyle = '#181820';
-            ctx.strokeStyle = p.color;
-            ctx.lineWidth = 3;
+            ctx.shadowBlur = 20; ctx.shadowColor = p.color;
+
+            // Тело
+            ctx.fillStyle = '#181820'; ctx.strokeStyle = p.color; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.rect(-15, -60, 30, 40); ctx.fill(); ctx.stroke();
+
+            // Голова
+            ctx.beginPath(); ctx.arc(0, -75, 16, 0, Math.PI * 2);
+            ctx.fillStyle = '#111'; ctx.fill(); ctx.stroke();
+            // Визор
+            ctx.fillStyle = p.color; ctx.fillRect(2, -80, 14, 6);
+
+            // Ноги (корректируем, чтобы стояли на месте при дыхании)
+            ctx.lineWidth = 7; ctx.lineCap = 'round';
             ctx.beginPath();
-            ctx.rect(-15, -60, 30, 40); // Широкий торс
-            ctx.fill();
+            ctx.moveTo(-7, -20); ctx.lineTo(-12, -breatheOffset);
+            ctx.moveTo(7, -20); ctx.lineTo(12, -breatheOffset);
             ctx.stroke();
 
-            // 2. Голова-шлем
-            ctx.beginPath();
-            ctx.arc(0, -75, 16, 0, Math.PI * 2);
-            ctx.fillStyle = '#111';
-            ctx.fill();
-            ctx.stroke();
-
-            // Визор (Светящийся глаз)
-            ctx.fillStyle = p.color;
-            ctx.shadowBlur = 20;
-            ctx.fillRect(2, -80, 14, 6);
-            ctx.shadowBlur = 15; // Возвращаем обычное свечение
-
-            // 3. Ноги
-            ctx.lineWidth = 7;
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            // Задняя нога
-            ctx.moveTo(-7, -20); ctx.lineTo(-12, 0);
-            // Передняя нога
-            ctx.moveTo(7, -20); ctx.lineTo(12, 0);
-            ctx.stroke();
-
-            // 4. Руки и Оружие (Меч)
-            if (p.isAttacking) {
-                // Анимация удара: рука вытянута вперед
-                ctx.beginPath();
-                ctx.moveTo(-5, -50);
-                ctx.lineTo(25, -45); // Рука бьет
-                ctx.stroke();
-
-                // Энергетический меч (Взмах)
-                ctx.shadowBlur = 30;
-                ctx.strokeStyle = '#fff'; // Белое ядро меча
-                ctx.lineWidth = 6;
-                ctx.beginPath();
-                ctx.moveTo(25, -45);
-                ctx.lineTo(75, -15); // Меч рубит вниз
-                ctx.stroke();
+            // Руки и Меч (Плавная анимация)
+            let attackState = isMe ? (me.attackTimer > 0) : p.isAttacking;
+            
+            if (attackState) {
+                // Вычисляем угол поворота меча для плавности (если это мы)
+                let angle = isMe ? Math.max(0, (20 - me.attackTimer) / 20) : 0.8; 
+                
+                ctx.save();
+                ctx.translate(10, -40); // Плечо
+                ctx.rotate(angle * Math.PI); // Взмах
+                
+                // Рука
+                ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(15, 0); ctx.stroke();
+                // Меч в движении (широкий след)
+                ctx.shadowBlur = 40; ctx.strokeStyle = '#fff'; ctx.lineWidth = 8;
+                ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(75, 0); ctx.stroke();
+                ctx.restore();
             } else {
-                // Стойка покоя: рука согнута
-                ctx.beginPath();
-                ctx.moveTo(-5, -50);
-                ctx.lineTo(5, -35); // Плечо
-                ctx.lineTo(20, -40); // Предплечье держит меч
-                ctx.stroke();
-
-                // Энергетический меч (Покой)
-                ctx.shadowBlur = 25;
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 5;
-                ctx.beginPath();
-                ctx.moveTo(20, -40);
-                ctx.lineTo(5, -90); // Меч направлен вверх и назад
-                ctx.stroke();
+                // Покой
+                ctx.beginPath(); ctx.moveTo(-5, -50); ctx.lineTo(5, -35); ctx.lineTo(20, -40); ctx.stroke();
+                ctx.shadowBlur = 25; ctx.strokeStyle = '#fff'; ctx.lineWidth = 5;
+                ctx.beginPath(); ctx.moveTo(20, -40); ctx.lineTo(5, -90); ctx.stroke();
             }
 
             ctx.restore();
         }
 
+        function drawParticles() {
+            particles.forEach(p => {
+                ctx.globalAlpha = Math.max(0, p.life);
+                ctx.fillStyle = p.color;
+                ctx.shadowBlur = 10; ctx.shadowColor = p.color;
+                ctx.fillRect(p.x, p.y, 4, 4);
+            });
+            ctx.globalAlpha = 1.0; ctx.shadowBlur = 0;
+        }
+
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Красивый пол с неоновой линией
-            ctx.fillStyle = '#111116';
-            ctx.fillRect(0, FLOOR, canvas.width, canvas.height - FLOOR);
-            
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = 'var(--primary)';
-            ctx.strokeStyle = '#333';
-            ctx.lineWidth = 4;
-            ctx.beginPath(); 
-            ctx.moveTo(0, FLOOR); 
-            ctx.lineTo(canvas.width, FLOOR); 
-            ctx.stroke();
-            ctx.shadowBlur = 0; // Отключаем тень для пола
-
-            // Рисуем игроков (сначала враг, потом я, чтобы я был поверх)
-            drawCyborg(enemy);
-            drawCyborg(me);
+            drawMap();
+            drawParticles();
+            drawCyborg(enemy, false);
+            drawCyborg(me, true);
         }
 
         function gameLoop() {
